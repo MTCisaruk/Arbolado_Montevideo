@@ -1,0 +1,96 @@
+DESCRIPCION DE LOS DATOS QUE SE INCLUYEN EN CADA COLUMNA DE LA TABLA
+
+Nº Árbol: número del árbol que se releva, asignado por la Unidad de
+Areas Verdes según los inventarios realizados en 1996-1997 y 2005-2008. Se identifica a través de la tabla del
+los árboles existentes (del SAV).
+
+Código calle:
+Código de la calle relevada que se encuentra en la tabla de los árboles
+existentes en cada cuadra, obtenida a partir del Sistema de Areas Verdes ( SAV
+sistema informatizado de gestión del arbolado público).
+
+Calle: Nombre de la calle relevada.
+
+Código entre: 
+Código de la calle que constituye la primera intersección de la cuadra que se
+releva.
+
+Entre: 
+Nombre de la calle que constituye la primera  intersección de la cuadra que se
+releva.
+
+Código Y:
+Código de la calle que constituye la segunda intersección de la cuadra que se
+releva.
+
+Y: Nombre de la calle que constituye la segunda intersección de la cuadra que se
+releva.
+
+N° Puerta:
+Número de puerta frente al cual se encuentra el árbol relevado.
+Si el árbol se encuentra exactamente en el límite de dos padrones, se inscribe el
+de menor numeración en esta celda.
+
+Ajuste:
+Los indicadores de ajuste se codificaran de la manera que se encuentren
+en el campo (Bis, a, b, etc.). Si el árbol se encuentra exactamente en el límite de dos
+padrones, se inscribe el de mayor numeración en esta celda.
+
+Acera:
+Espacio de una vía pública para el uso de peatones, superficie que se extiende
+desde el límite del padrón privado hasta el cordón de la vereda; o desde el borde
+del parque, plaza o plazoleta hasta el cordón. Se indica P: acera asociada a la numeración par e I: acera asociada a la numeración impar).
+
+Alineación:
+Indica si el ejemplar forma parte de una fila simple, doble o triple. Las
+líneas en que se ubican los arboles se enumeran de menor a mayor desde el cordón
+de la acera o límite de pavimento de calzada (en caso de no existir cordón) hacia el
+límite del padrón.Se señala el n° de alineación: 1=Simple, 2=Doble, 3=Triple, n=enésima alineación.
+Ejemplo: Alineación (1) y (2) refiere a fila de árboles plantados sobre la calle y sobre la propiedad respectivamente.
+
+Ordinal:
+El número ordinal corresponde a la posición relativa en la alineación para
+los casos en que existe más de un ejemplar frente al mismo padrón o vivienda.
+El ejemplar de la izquierda mirando hacia la finca será el No.1,aumentando en forma
+correlativa hacia la derecha (1,2,3,.....n).
+
+Ancho de vereda:
+Dimensión del ancho de la acera desde el límite de los padrones al cordón de la
+vereda o cordón cuneta, medida en metros. 
+
+DATOS PARTICULARES DEL ÁRBOL
+
+Distancia: 
+Distancia desde el eje del fuste del árbol al límite del padrón privado en metros.
+
+CAP: 
+Circunferencia a la Altura del Pecho, se toma a 1,3 metros de altura desde la
+base del fuste. Medida con cinta métrica en centímetros. 
+
+Altura: 
+Altura del árbol.
+
+Diámetro de copa: 
+Diámetro de la proyección de la copa al piso, alineado al eje
+del fuste, en metros.
+
+EV:
+Estado Vegetativo. Estado general del ejemplar que ayuda a determinar la calidad del arbolado. 1- MUY BUENO, 2- BUENO, 3- REGULAR, 4- MALO, 5- SECO, 6- CEPA y 7- TOCON
+
+Int. Aérea:
+Interferencias con el cableado aéreo u otras estructuras (columnas, viviendas, etc)
+
+Int. Sub:
+Interferencias de las raíces con instalaciones de servicios subterráneos: gas, ute, ose, saneamiento y otras.
+
+Género:
+Código de género al que pertenece el ejemplar que se esta relevando. En el archivo códigos de especies se puede identificar cada código con el género respectivo.
+
+Especie: 
+Código de especie a la que pertenece el ejemplar que se está relevando. En el archivo códigos de especies se puede identificar cada código de genero y especie con cada especie en particular.
+
+Nombre científico:
+Los nombres cienítificos se definen según las normas del Código internacional de nomenclatura Botánica.  Son binomios latinos, es decir, están compuestos por
+ dos palabras en latín: la primera es el nombre genérico, y la segunda, el epíteto o nombre específico. También suelen aparecer seguidos por el nombre de una o más "autoridades" 
+(quien[es] primero describió/-ieron la especie). Sin excepción, los nombres de las especies siempre aparecerán escritos en cursivas 
+(en el caso de los textos tipografiados) o subrayados (en el caso de los textos escritos a mano).

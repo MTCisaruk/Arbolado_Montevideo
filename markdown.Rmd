@@ -1,0 +1,50 @@
+---
+title: "Arbolado Montevideo"
+author: "Manuel Toledo, Lucas Pescetto y Joaquín Silva"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(here)
+library(tidyverse)
+```
+
+```{r cargar_datos,include=F}
+accentless <- function( s ) {
+  chartr(
+    "áéóūáéíóúÁÉÍÓÚýÝàèìòùÀÈÌÒÙâêîôûÂÊÎÔÛãõÃÕñÑäëïöüÄËÏÖÜÿçÇ",
+    "aeouaeiouAEIOUyYaeiouAEIOUaeiouAEIOUaoAOnNaeiouAEIOUycC",
+    s );
+}
+arbolitos <- lapply(c(paste(here("Bases/archivo_comunal"),1:18,".csv",sep="")),read_csv)
+for(i in 1:length(arbolitos)){
+  arbolitos[[i]] <- arbolitos[[i]][1:23] |> mutate(comuna=i)
+  names(arbolitos[[i]]) <- tolower(gsub(" ", "_", names(arbolitos[[i]]))) |> accentless()
+}
+arbolado <- do.call(rbind,arbolitos)
+rm(i,arbolitos)
+```
+
+# Introducción
+
+
+# Diagnóstico
+
+## Supuestos
+
+## Multicolinealidad
+
+## Linealidad
+
+## Homoscedasticidad
+
+## Supuesto de normalidad
+
+## Valores atípicos o influyentes
+
+# Incumplimiento de los supuestos
+
+#Conclusión
