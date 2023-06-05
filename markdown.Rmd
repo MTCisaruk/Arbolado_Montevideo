@@ -24,9 +24,48 @@ for(i in 1:length(arbolitos)){
   arbolitos[[i]] <- arbolitos[[i]][1:23] |> mutate(comuna=i)
   names(arbolitos[[i]]) <- tolower(gsub(" ", "_", names(arbolitos[[i]]))) |> accentless()
 }
-arbolado <- do.call(rbind,arbolitos)
+arbolado <- do.call(rbind,arbolitos) |> select(-ancho_vereda)
 rm(i,arbolitos)
+
+arbolado <- arbolado |> mutate(altura=ifelse(grepl("/",altura),NA,altura),diametro_copa=ifelse(grepl("/",diametro_copa),NA,diametro_copa))
+arbolado3 <- mutate(arbolado,altura=as.numeric(altura)) |> mutate(altura=ifelse(altura>50,altura/100,altura))
 ```
+
+```{r}
+tamanhos_comuna <- (arbolado |> group_by(comuna) |> summarise(n()))$`n()`
+(arbolado  |> filter(genero==63)|> group_by(comuna) |> summarise(n()))[2]/tamanhos_comuna
+
+```
+
+
+```{r modelos_de_prueba}
+arbolado2 <-  arbolado %>% 
+  filter(!is.na(diametro_copa) & !is.na(altura) & is.numeric(as.numeric(altura))  & !is.na(cap)
+         & is.numeric(as.numeric(cap)) & is.numeric(diametro_copa))
+
+summary(lm(formula = altura ~ cap + diametro_copa, data = arbolado2))
+
+lm(formula = log(altura) ~ log(cap) + log(diametro_copa) + log(ev), 
+    data = arbolado2 |> filter(comuna=1))
+```
+
+
+Relaciones:
+
+* EV
+
+* CAP
+
+* diametro_de_copa
+
+* altura
+
+Capaz?:
+
+* genero
+
+
+
 
 # Introducción
 
