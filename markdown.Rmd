@@ -2,7 +2,7 @@
 title: "Arbolado Montevideo"
 author: "Manuel Toledo, Lucas Pescetto y Joaquín Silva"
 date: "`r Sys.Date()`"
-output: pdf_document
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -12,78 +12,93 @@ library(here)
 library(tidyverse)
 ```
 
-```{r cargar_datos,include=F}
-accentless <- function( s ) {
-  chartr(
-    "áéóūáéíóúÁÉÍÓÚýÝàèìòùÀÈÌÒÙâêîôûÂÊÎÔÛãõÃÕñÑäëïöüÄËÏÖÜÿçÇ",
-    "aeouaeiouAEIOUyYaeiouAEIOUaeiouAEIOUaoAOnNaeiouAEIOUycC",
-    s );
-}
-arbolitos <- lapply(c(paste(here("Bases/archivo_comunal"),1:18,".csv",sep="")),read_csv)
-for(i in 1:length(arbolitos)){
-  arbolitos[[i]] <- arbolitos[[i]][1:23] |> mutate(comuna=i)
-  names(arbolitos[[i]]) <- tolower(gsub(" ", "_", names(arbolitos[[i]]))) |> accentless()
-}
-arbolado <- do.call(rbind,arbolitos) |> select(-ancho_vereda)
-rm(i,arbolitos)
-
-arbolado <- arbolado |> mutate(altura=ifelse(grepl("/",altura),NA,altura),diametro_copa=ifelse(grepl("/",diametro_copa),NA,diametro_copa))
-arbolado3 <- mutate(arbolado,altura=as.numeric(altura)) |> mutate(altura=ifelse(altura>50,altura/100,altura))
+```{r}
+precios_2023 <- read_csv(here("Bases/precios_2023.csv"),col_names=F)
+precios_2022 <- read_csv(here("Bases/precios_2022.csv"),col_names=F)
+productos <- read_csv2(here("Bases/productos.csv"))
+productos2 <- productos |> filter(id.producto==c(225:297)) |> select(-marca)
 ```
+
+
+
+
+mostrar la evolución de los precios ajustando por inflación
+
+Mapa con los supermercados
+
+Hacer una canasta y mostrar el mejor local
+
 
 ```{r}
-tamanhos_comuna <- (arbolado |> group_by(comuna) |> summarise(n()))$`n()`
-(arbolado  |> filter(genero==63)|> group_by(comuna) |> summarise(n()))[2]/tamanhos_comuna
+usethis::edit_r_environ(
+scope = "project"
+)
+```
+```{r}
+con <- DBI::dbConnect(
+RPostgres::Postgres(),
+host = Sys.getenv("DB_HOST"),
+port = Sys.getenv("DB_PORT"),
+user = Sys.getenv("DB_USER"),
+password = Sys.getenv("DB_PASS"),
+dbname = Sys.getenv("DB_NAME")
+)
 
+
+df2 <- con %>%
+dplyr::tbl(
+dbplyr::in_schema(
+"scraping_precios"
+,
+table = "a_procesar"
+)
+) %>%
+dplyr::select(
+filename,
+file_path,
+md5,
+year,
+procesado
+) %>%
+dplyr::filter(
+procesado == 1,
+year > 0
+) %>%
+dplyr::arrange(
+- year
+)
 ```
 
 
-```{r modelos_de_prueba}
-arbolado2 <-  arbolado %>% 
-  filter(!is.na(diametro_copa) & !is.na(altura) & is.numeric(as.numeric(altura))  & !is.na(cap)
-         & is.numeric(as.numeric(cap)) & is.numeric(diametro_copa))
-
-summary(lm(formula = altura ~ cap + diametro_copa, data = arbolado2))
-
-lm(formula = log(altura) ~ log(cap) + log(diametro_copa) + log(ev), 
-    data = arbolado2 |> filter(comuna=1))
-```
-
-
-Relaciones:
-
-* EV
-
-* CAP
-
-* diametro_de_copa
-
-* altura
-
-Capaz?:
-
-* genero
 
 
 
+Aceite de girasol 900 cc = 1:3
+Aguja vacuna 1 Kg	= 13 (con hueso) 14 (sin hueso)
+Arroz blanco 1 Kg	= 15:20
+Arvejas en conserva 300 grs = 21,23 (300g) y 22 (380g)
+Azúcar blanco 1 Kg	= 24:25
+Carne picada vacuna 1 Kg	= 29:30
+Cocoa 500 grs	= 40:41
+Dulce de leche 1 Kg	= 48:50
+Fideos secos al huevo 500 grs	= 52:54
+Galletitas al agua 140 grs	= 61 (140g) 62(120g)
+Harina trigo común 0000  1 kg	= 74:78
+Huevos colorados 1/2 docena	= 85:87
+Manteca 200 grs	= 102:104
+Pan flauta 215 grs	= 121
+Papel higiénico hoja simple 4 rollos 30 mts	= 122:124
+Pollo entero fresco con menudos 1 kg	= 130:132
+Pulpa de tomate 1 Lt	= 133:135
+Sal fina yodada fluorada 500 grs	= 140:142
+Yerba mate común 1 Kg	= 149:151
 
-# Introducción
+EXTRA:
+café = 26:28
+fideos de sémola = 55:57
 
 
-# Diagnóstico
 
-## Supuestos
 
-## Multicolinealidad
 
-## Linealidad
 
-## Homoscedasticidad
-
-## Supuesto de normalidad
-
-## Valores atípicos o influyentes
-
-# Incumplimiento de los supuestos
-
-#Conclusión

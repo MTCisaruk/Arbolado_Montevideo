@@ -1,0 +1,61 @@
+---
+title: "Análisis de precios de la canasta básica"
+author: "Manuel Toledo y Lucas Pescetto"
+date: "`r Sys.Date()`"
+output: slidy_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Secciones
+
+
+
+## Objetivo
+
+- Analizar diferencias de precios a lo largo del tiempo, en distintos lugares dentro del país y establecimientos dentro de Montevideo.
+- Proveer una guía que ayude a identificar dónde conviene hacer las compras de entre los establecimientos de Montevideo que forman parte de la encuesta del índice de precios al consumidor.
+
+# Los datos
+
+## Productos
+
+- La canasta básica está compuesta de 18 productos.
+- Los datos cuentan con `r nrow(productos_canasta_basica)` contando las distintas marcas y variantes.
+- Agregamos productos?
+
+
+```{r}
+#resumen con stargazer de los datos de productos?
+```
+
+
+## Establecimientos
+
+```{r}
+
+```
+
+HACER UN MAPA CON LOS SUPERMERCADOS
+
+# Análisis
+
+## Cadenas
+
+Diferencias entre las distintas cadenas de supermercado
+
+Diferencias tomando en cuenta las marcas?
+
+## En el país
+
+Mapa con precios por departamento y si hay diferencias por productos
+
+## En Montevideo
+
+Mapa con precios por zona y si hay diferencias por productos
+
+## Shiny interactivo
+
+Mapa? con os precios por establecimiento cambiando los productos que decido entran
