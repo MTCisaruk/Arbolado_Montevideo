@@ -25,14 +25,14 @@ df <- DBI::dbGetQuery(
   SELECT
     id_producto,
     id_establecimientos,
-    id_file,
+    precio,
     EXTRACT(year from fecha) * 100 + EXTRACT(month from fecha) as year_month
   FROM
     scraping_precios.fact_price
   WHERE
-    id_producto IN (1,2,3,13,14,15:20,21,23,22,24,25,29,30,40,41,48,49,50,52,53,54,61,62,74,75,76,77,78,85,86,87,102,103,104,121,122,123,124,130,131,132,133,134,135,140,141,142,149,150,151,26,27,28,55,56,57) 
-  GROUP BY id_producto, id_establecimientos, EXTRACT(year from fecha) * 100 + EXTRACT(month from fecha)
+    id_producto IN (1,2,3,13,14,15,16,17,18,19,20,21,23,22,24,25,29,30,40,41,48,49,50,52,53,54,61,62,74,75,76,77,78,85,86,87,102,103,104,121,122,123,124,130,131,132,133,134,135,140,141,142,149,150,151,26,27,28,55,56,57) 
+  GROUP BY id_producto, id_establecimientos, precio, EXTRACT(year from fecha) * 100 + EXTRACT(month from fecha)
   "
 )
 
-saveRDS(df, "precios.RDS")
+saveRDS(df, "precios_canasta.RDS")
