@@ -19,7 +19,7 @@ con <- DBI::dbConnect(
 )
 
 
-df <- DBI::dbGetQuery(
+precios_canasta <- DBI::dbGetQuery(
   con,
   "
   SELECT
@@ -35,4 +35,13 @@ df <- DBI::dbGetQuery(
   "
 )
 
-saveRDS(df, "precios_canasta.RDS")
+establecimientos <- read_delim("datos/establecimiento.csv", delim = ";") %>% 
+  select(id.establecimientos, nombre.sucursal, barrio, cadena, long, lat, depto)
+
+productos <- read_csv2("datos/productos.csv") %>% 
+  select(id.producto, producto, marca, nombre)
+
+precios_canasta <- left_join(precios_canasta, establecimientos, by = c("id_establecimientos" = "id.establecimientos")) %>% 
+  left_join(productos, by = c("id_producto" = "id.producto"))
+
+saveRDS(precios_canasta, "precios_canasta.RDS")
