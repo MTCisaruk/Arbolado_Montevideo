@@ -97,7 +97,19 @@ EXTRA:
 café = 26:28
 fideos de sémola = 55:57
 
+# Introducción
 
+# Datos
+
+# Análisis exploratorio
+
+# Modelo estadístico ¿?
+
+Posible herramienta para hacer un modelo con bootstrap? https://towardsdatascience.com/multi-step-time-series-forecasting-with-xgboost-65d6820bec39
+
+**XGBoost**
+
+# Descripción de la aplicación
 
 
 

@@ -12,19 +12,83 @@ library(here)
 library(sf)
 library(terra)
 ```
-```{r bases_y_mapas}
-precios <- readRDS(here("precios_canasta.RDS"))
-establecimientos <- read_delim("datos/establecimiento.csv", delim = ";") |> mutate(lat=as.numeric(sub(',','.',lat,fixed=T)),long=as.numeric(sub(',','.',long,fixed=T)))
-df_depto <- st_as_sf(vect(here("Mapas","ine_depto.shp")))
-df_mvdeo <- fortify(readOGR(here("Mapas","ine_ccz_mvd.shp")))
+
+```{r QuitarAcentos}
+rm_accent <- function(str,pattern="all") {
+   if(!is.character(str))
+    str <- as.character(str)
+
+  pattern <- unique(pattern)
+
+  if(any(pattern=="Ç"))
+    pattern[pattern=="Ç"] <- "ç"
+
+  symbols <- c(
+    acute = "áéíóúÁÉÍÓÚýÝ",
+    grave = "àèìòùÀÈÌÒÙ",
+    circunflex = "âêîôûÂÊÎÔÛ",
+    tilde = "ãõÃÕñÑ",
+    umlaut = "äëïöüÄËÏÖÜÿ",
+    cedil = "çÇ"
+  )
+
+  nudeSymbols <- c(
+    acute = "aeiouAEIOUyY",
+    grave = "aeiouAEIOU",
+    circunflex = "aeiouAEIOU",
+    tilde = "aoAOnN",
+    umlaut = "aeiouAEIOUy",
+    cedil = "cC"
+  )
+
+  accentTypes <- c("´","`","^","~","¨","ç")
+
+  if(any(c("all","al","a","todos","t","to","tod","todo")%in%pattern)) # opcao retirar todos
+    return(chartr(paste(symbols, collapse=""), paste(nudeSymbols, collapse=""), str))
+
+  for(i in which(accentTypes%in%pattern))
+    str <- chartr(symbols[i],nudeSymbols[i], str) 
+
+  return(str)
+}
+
+# FUENTE: https://stackoverflow.com/questions/39148759/remove-accents-from-a-dataframe-column-in-r
 ```
 
-```{r mapa uruguay}
-establecimientosCord <- filter(establecimientos,!(is.na(lat) | is.na(long)))
-establecimientosCord <- st_as_sf(establecimientosCord,coords = c("lat", "long"))
-ggplot() + geom_sf(data=df_depto,fill=NA,color="black") +
-  geom_sf(data=establecimientosCord,pch=4,color="red")
+```{r bases_y_mapas}
+#precios <- readRDS(here("precios_canasta.RDS"))
+establecimientos <- read_delim("datos/establecimiento.csv", delim = ";",locale = readr::locale(encoding = "latin1")) |> mutate(lat=as.numeric(sub(',','.',lat,fixed=T)),long=as.numeric(sub(',','.',long,fixed=T)))
+# Los datos de lat y long del san roque del aeropuerto están mal, así que hay que cambiarlos
+establecimientos <- filter(establecimientos,id.establecimientos!=679)
+df_depto <- st_as_sf(vect(here("Mapas","ine_depto.shp"))) %>% st_set_crs(5382) %>%  st_transform(4326)
+df_mvdeo <- st_as_sf(vect(here("Mapas","ine_ccz_mvd.shp")))
+
+
 ```
+
+```{r}
+# lo que usé para arreglar los mapas: https://gitlab.com/meda3/apvp-de-transitos-en-uruguay/-/blob/master/app.R
+```
+
+
+```{r mapa uruguay}
+establecimientosCord <- filter(establecimientos,!(is.na(lat) | is.na(long))) %>% filter(long<(-30) & long>(-35))
+establecimientosCord <- st_as_sf(establecimientosCord,coords = c("lat", "long")) %>% st_set_crs(4326)
+ggplot() + 
+  geom_sf(data=df_depto,fill=NA,color="gray20") +
+  geom_sf(data=establecimientosCord,pch=4,color="red") +
+  theme_void() +
+  labs(title="Establecimientos") +
+  theme(plot.title=element_text(hjust=1/2))
+```
+
+```{r}
+ggplot(establecimientos,aes(x=depto)) + geom_bar()
+
+# HAY QUE CONVERTIR LOS TILDES
+# #
+```
+
 
 
 ## Secciones
