@@ -12,6 +12,7 @@ library(here)
 library(tidyverse)
 library(sf)
 library(terra)
+library(qdap)
 ```
 
 ```{r}
@@ -72,8 +73,11 @@ Los productos presentan
 a <- group_by(productos,producto) %>% mutate(marcas=n()) %>% ungroup()
 ```
 
-```{r}
 
+
+```{r}
+precios2 <- mutate(precios,year_month=as.Date(paste(str_sub(year_month,start=1,end=4),str_sub(year_month,start=5,end=6),sep="-")))
+ggplot(filter(precios,id_producto %in% 55:57),aes(x=year_month,y=avg)) + geom_point()
 ```
 
 
@@ -84,6 +88,10 @@ ggplot() +
   theme_void() +
   labs(title="Establecimientos") +
   theme(plot.title=element_text(hjust=1/2))
+```
+
+```{r}
+ggplot()
 ```
 
 
