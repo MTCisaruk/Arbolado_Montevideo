@@ -2,7 +2,7 @@
 title: "Arbolado Montevideo"
 author: "Manuel Toledo, Lucas Pescetto y Joaquín Silva"
 date: "`r Sys.Date()`"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -10,6 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 library(here)
 library(tidyverse)
+library(sf)
+library(terra)
 ```
 
 ```{r}
@@ -21,7 +23,7 @@ establecimientosCord <- filter(establecimientos,!(is.na(lat) | is.na(long))) %>%
 establecimientosCord <- st_as_sf(establecimientosCord,coords = c("lat", "long")) %>% st_set_crs(4326)
 df_depto <- st_as_sf(vect(here("Mapas","ine_depto.shp"))) %>% st_set_crs(5382) %>%  st_transform(4326)
 df_mvdeo <- st_as_sf(vect(here("Mapas","ine_ccz_mvd.shp")))
-productos <- read_csv2("datos/productos.csv",locale = readr::locale(encoding = "latin1"))
+productos <- read_csv2("datos/productos.csv",locale = readr::locale(encoding = "latin1")) %>% filter(id.producto %in% c(1,2,3,13,14,15,16,17,18,19,20,21,23,22,24,25,29,30,40,41,48,49,50,52,53,54,61,62,76,77,78,85,86,87,102,103,104,121,122,123,124,130,131,132,133,134,135,140,141,142,149,150,151,26,27,28,55,56,57,359,361,365))
 ```
 
 # Introducción
@@ -62,6 +64,17 @@ Estos datos se asocian a cada relevación de precios hecha, por producto y dentr
 
 # Análisis exploratorio
 
+HAY QUE AGREGAR LOS PRODUCTOS 359,361 Y 365 Y QUITAR 74 Y 75
+
+Los productos presentan
+
+```{r tablas_de_productos}
+a <- group_by(productos,producto) %>% mutate(marcas=n()) %>% ungroup()
+```
+
+```{r}
+
+```
 
 
 ```{r mapa uruguay}
@@ -97,7 +110,7 @@ Hacer una canasta y mostrar el mejor local
 
 
 
-Aceite de girasol 900 cc = 1:3
+Aceite de girasol 900 cc = 1:3,357,359,363
 Aguja vacuna 1 Kg	= 13 (con hueso) 14 (sin hueso)
 Arroz blanco 1 Kg	= 15:20
 Arvejas en conserva 300 grs = 21,23 (300g) y 22 (380g)
@@ -107,7 +120,7 @@ Cocoa 500 grs	= 40:41
 Dulce de leche 1 Kg	= 48:50
 Fideos secos al huevo 500 grs	= 52:54
 Galletitas al agua 140 grs	= 61 (140g) 62(120g)
-Harina trigo común 0000  1 kg	= 74:78
+Harina trigo común 0000  1 kg	= 76:78
 Huevos colorados 1/2 docena	= 85:87
 Manteca 200 grs	= 102:104
 Pan flauta 215 grs	= 121
