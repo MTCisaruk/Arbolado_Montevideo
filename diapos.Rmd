@@ -56,7 +56,7 @@ rm_accent <- function(str,pattern="all") {
 ```
 
 ```{r bases_y_mapas}
-#precios <- readRDS(here("precios_canasta.RDS"))
+precios <- readRDS(here("precios_canasta.RDS"))
 establecimientos <- read_delim("datos/establecimiento.csv", delim = ";",locale = readr::locale(encoding = "latin1")) |> mutate(lat=as.numeric(sub(',','.',lat,fixed=T)),long=as.numeric(sub(',','.',long,fixed=T)))
 # Los datos de lat y long del san roque del aeropuerto están mal, así que hay que cambiarlos
 establecimientos <- filter(establecimientos,id.establecimientos!=679)
@@ -97,7 +97,7 @@ ggplot(establecimientos,aes(x=depto)) + geom_bar()
 
 ## Objetivo
 
-- Analizar diferencias de precios a lo largo del tiempo, en distintos lugares dentro del país y establecimientos dentro de Montevideo.
+- Analizar diferencias de precios a lo largo del tiempo, en distintos lugares dentro del país y en establecimientos dentro de Montevideo.
 - Proveer una guía que ayude a identificar dónde conviene hacer las compras de entre los establecimientos de Montevideo que forman parte de la encuesta del índice de precios al consumidor.
 
 # ???

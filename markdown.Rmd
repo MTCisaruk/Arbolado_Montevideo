@@ -13,13 +13,78 @@ library(tidyverse)
 ```
 
 ```{r}
-precios_2023 <- read_csv(here("Bases/precios_2023.csv"),col_names=F)
-precios_2022 <- read_csv(here("Bases/precios_2022.csv"),col_names=F)
-productos <- read_csv2(here("Bases/productos.csv"))
-productos2 <- productos |> filter(id.producto==c(225:297)) |> select(-marca)
+precios <- readRDS(here("precios_actualizada.RDS"))
+establecimientos <- read_delim("datos/establecimiento.csv", delim = ";",locale = readr::locale(encoding = "latin1"))
+# Los datos de lat y long del san roque del aeropuerto están mal, así que hay que cambiarlos
+establecimientos <- filter(establecimientos,id.establecimientos!=679) |> mutate(lat=as.numeric(sub(',','.',lat,fixed=T)),long=as.numeric(sub(',','.',long,fixed=T)))
+establecimientosCord <- filter(establecimientos,!(is.na(lat) | is.na(long))) %>% filter((long<(-30) & long>(-35)))
+establecimientosCord <- st_as_sf(establecimientosCord,coords = c("lat", "long")) %>% st_set_crs(4326)
+df_depto <- st_as_sf(vect(here("Mapas","ine_depto.shp"))) %>% st_set_crs(5382) %>%  st_transform(4326)
+df_mvdeo <- st_as_sf(vect(here("Mapas","ine_ccz_mvd.shp")))
+productos <- read_csv2("datos/productos.csv",locale = readr::locale(encoding = "latin1"))
+```
+
+# Introducción
+
+Este trabajo busca analizar las diferencias de precios a lo largo del tiempo, en distintos lugares dentro del país y en establecimientos dentro de Montevideo.
+
+Como objetivo adicional se propone ayudar a los consumidores a tomar mejores decisiones a la hora de comprar???? ?0
+
+# Datos
+
+Contamos con los datos del índice de precios del consumidor del INE (cita) a partir del año 2016 y hasta marzo del 2023. Estos contienen 363 productos dentro 766 establecimientos, aunque de entre los productos solo se usaran los 18 productos dentro de la canasta básica más 2 productos que se agregaron por decisión personal. Los productos son:
+
+- Aceite de girasol 900 cc
+- Aguja vacuna 1 kg (con y sin hueso)
+- Arroz blanco 1 kg
+- Arvejas en conserva 300 g
+- Azúcar blanco 1 kg
+- Carne picada vacuna 1 kg
+- Cocoa 500 g
+- Dulce de leche 1 kg
+- Fideos secos al huevo 500 g
+- Galletitas al agua 140 g
+- Harina trigo común 0000  1 kg
+- Huevos colorados 1/2 docena
+- Manteca 200 g
+- Pan flauta 215 g
+- Papel higiénico hoja simple 4 rollos 30 mts
+- Pollo entero fresco con menudos 1 kg
+- Pulpa de tomate 1 L
+- Sal fina yodada fluorada 500 g
+- Yerba mate común 1 kg
+- Café (agregado)
+- Fideos secos de sémola 500 g (agregado)
+
+Para cada producto se cuenta con una descripción y una marca asociada. A su vez se cuenta con datos de ubicación, tamaño, nombre y cadena de cada establecimiento.
+
+Estos datos se asocian a cada relevación de precios hecha, por producto y dentro de cada establecimiento, así como también se le asocia la fecha en que fue registrado.
+
+# Análisis exploratorio
+
+
+
+```{r mapa uruguay}
+ggplot() + 
+  geom_sf(data=df_depto,fill=NA,color="gray20") +
+  geom_sf(data=establecimientosCord,pch=4,color="red") +
+  theme_void() +
+  labs(title="Establecimientos") +
+  theme(plot.title=element_text(hjust=1/2))
 ```
 
 
+# Modelo estadístico ¿?
+
+Posible herramienta para hacer un modelo con bootstrap? https://towardsdatascience.com/multi-step-time-series-forecasting-with-xgboost-65d6820bec39
+
+**XGBoost**
+
+# Descripción de la aplicación
+
+
+
+# Cosas
 
 
 mostrar la evolución de los precios ajustando por inflación
@@ -27,47 +92,6 @@ mostrar la evolución de los precios ajustando por inflación
 Mapa con los supermercados
 
 Hacer una canasta y mostrar el mejor local
-
-
-```{r}
-usethis::edit_r_environ(
-scope = "project"
-)
-```
-```{r}
-con <- DBI::dbConnect(
-RPostgres::Postgres(),
-host = Sys.getenv("DB_HOST"),
-port = Sys.getenv("DB_PORT"),
-user = Sys.getenv("DB_USER"),
-password = Sys.getenv("DB_PASS"),
-dbname = Sys.getenv("DB_NAME")
-)
-
-
-df2 <- con %>%
-dplyr::tbl(
-dbplyr::in_schema(
-"scraping_precios"
-,
-table = "a_procesar"
-)
-) %>%
-dplyr::select(
-filename,
-file_path,
-md5,
-year,
-procesado
-) %>%
-dplyr::filter(
-procesado == 1,
-year > 0
-) %>%
-dplyr::arrange(
-- year
-)
-```
 
 
 
@@ -96,21 +120,4 @@ Yerba mate común 1 Kg	= 149:151
 EXTRA:
 café = 26:28
 fideos de sémola = 55:57
-
-# Introducción
-
-# Datos
-
-# Análisis exploratorio
-
-# Modelo estadístico ¿?
-
-Posible herramienta para hacer un modelo con bootstrap? https://towardsdatascience.com/multi-step-time-series-forecasting-with-xgboost-65d6820bec39
-
-**XGBoost**
-
-# Descripción de la aplicación
-
-
-
 
