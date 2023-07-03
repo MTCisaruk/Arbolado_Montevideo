@@ -52,7 +52,7 @@ precios_canasta <- DBI::dbGetQuery(
 )
 ```
 
-```{r preprocesamiento y datos auxiliares, eval = FALSE}
+```{r preprocesamiento y datos auxiliares, eval = F}
 establecimientos <- read_delim("datos/establecimiento.csv", delim = ";", locale = locale(encoding = "latin1")) %>% 
   select(id.establecimientos, nombre.sucursal, barrio, cadena, long, lat, depto, id.depto) %>% 
   mutate(lat=as.numeric(sub(',','.',lat,fixed=T)),
@@ -190,6 +190,8 @@ ggplot() +
 
 Posible herramienta para hacer un modelo con bootstrap? https://towardsdatascience.com/multi-step-time-series-forecasting-with-xgboost-65d6820bec39
 
+
+USAMOS ESTO PARA HACER EL MODELO:
 XGBOOST TIME SERIES FORECAST IN R
 http://datasideoflife.com/?p=1009
 
@@ -202,11 +204,11 @@ fideos <- precios %>%
          month = month(year_month), .before = 1) %>% 
   add_case(year = c(rep(2023, 9), rep(2024, 12)), month = c(4:12, 1:12)) 
 
-x_train <- fideos %>% filter(!is.na(precio)) %>% select(year, month) %>% as.matrix() %>% xgboost::xgb.DMatrix()
+x_train <- fideos %>% filter(!is.na(precio)) %>% select(year, month) %>% as.matrix()
 
 y_train <- c(fideos %>% filter(!is.na(precio)) %>% select(precio))[[1]]
 
-x_pred <- fideos %>% filter(is.na(precio)) %>% select(year, month) %>% as.matrix() %>% xgboost::xgb.DMatrix()
+x_pred <- fideos %>% filter(is.na(precio)) %>% select(year, month) %>% as.matrix()
 
 xgb_trcontrol <- caret::trainControl(
   # metodo para sacar la remuestra
