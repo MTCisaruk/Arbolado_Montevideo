@@ -1,12 +1,12 @@
 ---
-title: "Arbolado Montevideo"
-author: "Manuel Toledo, Lucas Pescetto y Joaquín Silva"
+title: "Precios al consumidor"
+author: "Manuel Toledo y Lucas Pescetto"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
 
 ```{r setup, include=FALSE, message = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
 library(readr)
 library(here)
 library(tidyverse)
@@ -17,6 +17,53 @@ library(RColorBrewer)
 library(xgboost)
 library(caret)
 ```
+
+# Introducción
+
+Este proyecto surge a partir de la información provista por el SIPC (Sistema de Información de Precios al Consumidor) del Ministerio de Economía y Finanzas. Este organismo brinda información acerca de los precios de una serie de productos a través del tiempo y para distintos establecimientos en todos los departamentos de Uruguay.
+
+Por otro lado, a raíz de la amplia diversidad de los productos de los cuales se tienen datos, se decidió tomar solamente aquellos que son parte de la CBA (Canasta Básica de Alimentos) de Uruguay.
+
+El objetivo del trabajo es generar un análisis y visualizaciones que permitan ver las variaciones en los precios de dichos productos a lo largo del tiempo, en distintos lugares dentro del país y en establecimientos dentro de Montevideo. Esto resultaría de utilidad para ayudar a los consumidores a tomar mejores decisiones financieras a la hora de comprar alimentos.
+
+# Datos
+
+El SIPC presenta los datos en tres datasets:
+
+- Establecimientos: es una lista de los establecimientos de los cuales se obtienen los precios. Se obtiene en la web de Catálogo abierto de datos.
+- Productos: es una lista de los productos de los cuales se tienen los precios. Se obtiene en la web de Catálogo abierto de datos.
+- Precios: contiene la información acerca de los precios registrados en cada momento del tiempo, para cada producto en cada establecimiento. Si bien se puede obtener en la web de Catálogo abierto de datos, debido a su tamaño se extrae con una consulta SQL.
+
+A continuación se muestra una tabla con las variables de cada dataset:
+
+(tablas)
+
+Se cuenta con datos a partir del año 2016 y hasta marzo del 2023. Estos contienen 363 productos dentro 766 establecimientos. De esos, solamente se usarán los 18 productos dentro de la CBA más 2 productos que se agregaron por decisión personal (para cada producto existen varias marcas).  
+Los productos son:
+
+- Aceite de girasol 900 cc
+- Aguja vacuna 1 kg (con y sin hueso)
+- Arroz blanco 1 kg
+- Arvejas en conserva 300 g
+- Azúcar blanco 1 kg
+- Carne picada vacuna 1 kg ***
+- Cocoa 500 g
+- Dulce de leche 1 kg
+- Fideos secos al huevo 500 g ***
+- Galletitas al agua 140 g ***
+- Harina trigo común 0000  1 kg
+- Huevos colorados 1/2 docena
+- Manteca 200 g
+- Pan flauta 215 g
+- Papel higiénico hoja simple 4 rollos 30 mts
+- Pollo entero fresco con menudos 1 kg
+- Pulpa de tomate 1 L
+- Sal fina yodada fluorada 500 g
+- Yerba mate común 1 kg ***
+- Café (agregado)
+- Fideos secos de sémola 500 g (agregado)
+
+A partir de los datasets, se construyó uno con el precio promedio mensual para cada producto (desagregándolo según las marcas y establecimientos), que incluyera parte de la información presente en Establecimientos (el nombre de la sucursal, cadena, coordenadas, barrio y departamento) y Productos (nombre y marca). Para eso se utilizaron las *keys* respectivas, id.establecimientos e id_productos.
 
 ```{r consulta SQL, eval = F}
 usethis::edit_r_environ(
@@ -78,7 +125,6 @@ precios_canasta <- st_as_sf(precios_canasta, coords = c("lat", "long")) %>%
 saveRDS(precios_canasta, "precios_canasta.RDS")
 ```
 
-
 ```{r cargar datos}
 precios <- readRDS(here("precios_canasta.RDS"))
 
@@ -87,56 +133,17 @@ df_depto <- st_as_sf(vect(here("Mapas","ine_depto.shp"))) %>% st_set_crs(5382) %
 df_mvdeo <- st_as_sf(vect(here("Mapas","ine_ccz_mvd.shp")))
 ```
 
-# Introducción
-
-Este trabajo busca analizar las diferencias de precios a lo largo del tiempo, en distintos lugares dentro del país y en establecimientos dentro de Montevideo.
-
-Como objetivo adicional se propone ayudar a los consumidores a tomar mejores decisiones a la hora de comprar???? ?0
-
-# Datos
-
-Contamos con los datos del índice de precios del consumidor del INE (cita) a partir del año 2016 y hasta marzo del 2023. Estos contienen 363 productos dentro 766 establecimientos, aunque de entre los productos solo se usaran los 18 productos dentro de la canasta básica más 2 productos que se agregaron por decisión personal. Los productos son:
-
-- Aceite de girasol 900 cc
-- Aguja vacuna 1 kg (con y sin hueso)
-- Arroz blanco 1 kg
-- Arvejas en conserva 300 g
-- Azúcar blanco 1 kg
-- Carne picada vacuna 1 kg ***
-- Cocoa 500 g
-- Dulce de leche 1 kg
-- Fideos secos al huevo 500 g ***
-- Galletitas al agua 140 g ***
-- Harina trigo común 0000  1 kg
-- Huevos colorados 1/2 docena
-- Manteca 200 g
-- Pan flauta 215 g
-- Papel higiénico hoja simple 4 rollos 30 mts
-- Pollo entero fresco con menudos 1 kg
-- Pulpa de tomate 1 L
-- Sal fina yodada fluorada 500 g
-- Yerba mate común 1 kg ***
-- Café (agregado)
-- Fideos secos de sémola 500 g (agregado)
-
-Para cada producto se cuenta con una descripción y una marca asociada. A su vez se cuenta con datos de ubicación, tamaño, nombre y cadena de cada establecimiento.
-
-Estos datos se asocian a cada relevación de precios hecha, por producto y dentro de cada establecimiento, así como también se le asocia la fecha en que fue registrado.
-
 # Análisis exploratorio
 
-Los productos presentan
-
-```{r tablas_de_productos}
-a <- group_by(productos,producto) %>% mutate(marcas=n()) %>% ungroup()
-```
-
-avg == 0
-
-```{r}
+```{r eval = F}
 
 ggplot(filter(precios,id_producto %in% 55:57 & id_establecimientos == 2),aes(x=year_month,y=avg)) + geom_point() + geom_smooth()
 
+```
+
+Evolución de precios de las distintas marcas de fideos
+
+```{r}
 precios %>% 
   filter(id_producto %in% 55:57 & avg > 0) %>% 
   group_by(id_producto, year_month) %>% 
@@ -146,31 +153,7 @@ precios %>%
   geom_point()
 ```
 
-```{r}
-
-precios2 %>% 
-  filter(id_producto == 57) %>% 
-
-```
-
-```{r mapa_precios}
-fideos_dpto <- precios %>% 
-  filter(id_producto %in% c(55, 56, 57)) %>% 
-  group_by(id.depto) %>% 
-  summarise(precio = mean(avg))
-
-ggplot(data=df_depto %>% left_join(fideos_dpto, by = c("DEPTO" = "id.depto"))) + 
-  geom_sf(aes(fill=precio),color="gray20") +
-  scale_fill_gradientn(colours = brewer.pal(5, "OrRd")) +
-  geom_sf(data=precios %>% filter(!duplicated(geometry)), aes(geometry = geometry), pch=4,color="red") +
-  theme_void() +
-  labs(title="Establecimientos") +
-  theme(plot.title=element_text(hjust=1/2))
-
-
-
-```
-
+Mapa de los establecimientos
 
 ```{r mapa_establecimientos}
 ggplot() + 
@@ -181,19 +164,34 @@ ggplot() +
   theme(plot.title=element_text(hjust=1/2))
 ```
 
-```{r}
+Mapa del precio promedio de los fideos según departamento
+
+```{r mapa_precios}
+fideos_dpto <- precios %>% 
+  filter(id_producto %in% c(55, 56, 57)) %>% 
+  group_by(id.depto) %>% 
+  summarise(precio = mean(avg))
+
+ggplot(data=df_depto %>% left_join(fideos_dpto, by = c("DEPTO" = "id.depto"))) + 
+  geom_sf(aes(fill=precio),color="gray20") +
+  scale_fill_gradientn(colours = brewer.pal(5, "OrRd")) +
+  theme_void() +
+  labs(title="Establecimientos") +
+  theme(plot.title=element_text(hjust=1/2))
+
+
 
 ```
 
 
-# Modelo estadístico ¿?
-
-Posible herramienta para hacer un modelo con bootstrap? https://towardsdatascience.com/multi-step-time-series-forecasting-with-xgboost-65d6820bec39
-
+# Modelo estadístico
 
 USAMOS ESTO PARA HACER EL MODELO:
+
 XGBOOST TIME SERIES FORECAST IN R
 http://datasideoflife.com/?p=1009
+
+Predicción del modelo inicial:
 
 ```{r}
 fideos <- precios %>% 
@@ -249,7 +247,7 @@ ggplot(data = fideos, aes(x = year_month, y = precio, color = pred)) +
   scale_color_manual("Valores predichos", labels = c("NO", "SI"), values = c("black", "red"))
 
 ```
-
+```{r}
 # Descripción de la aplicación
 
 
@@ -257,37 +255,38 @@ ggplot(data = fideos, aes(x = year_month, y = precio, color = pred)) +
 # Cosas
 
 
-mostrar la evolución de los precios ajustando por inflación
+# mostrar la evolución de los precios ajustando por inflación
+# 
+# Mapa con los supermercados
+# 
+# Hacer una canasta y mostrar el mejor local
+# 
+# 
+# 
+# 
+# 
+# Aceite de girasol 900 cc = 1:3,357,359,363
+# Aguja vacuna 1 Kg	= 13 (con hueso) 14 (sin hueso)
+# Arroz blanco 1 Kg	= 15:20
+# Arvejas en conserva 300 grs = 21,23 (300g) y 22 (380g)
+# Azúcar blanco 1 Kg	= 24:25
+# Carne picada vacuna 1 Kg	= 29:30
+# Cocoa 500 grs	= 40:41
+# Dulce de leche 1 Kg	= 48:50
+# Fideos secos al huevo 500 grs	= 52:54
+# Galletitas al agua 140 grs	= 61 (140g) 62(120g)
+# Harina trigo común 0000  1 kg	= 76:78
+# Huevos colorados 1/2 docena	= 85:87
+# Manteca 200 grs	= 102:104
+# Pan flauta 215 grs	= 121
+# Papel higiénico hoja simple 4 rollos 30 mts	= 122:124
+# Pollo entero fresco con menudos 1 kg	= 130:132
+# Pulpa de tomate 1 Lt	= 133:135
+# Sal fina yodada fluorada 500 grs	= 140:142
+# Yerba mate común 1 Kg	= 149:151
+# 
+# EXTRA:
+# café = 26:28
+# fideos de sémola = 55:57
 
-Mapa con los supermercados
-
-Hacer una canasta y mostrar el mejor local
-
-
-
-
-
-Aceite de girasol 900 cc = 1:3,357,359,363
-Aguja vacuna 1 Kg	= 13 (con hueso) 14 (sin hueso)
-Arroz blanco 1 Kg	= 15:20
-Arvejas en conserva 300 grs = 21,23 (300g) y 22 (380g)
-Azúcar blanco 1 Kg	= 24:25
-Carne picada vacuna 1 Kg	= 29:30
-Cocoa 500 grs	= 40:41
-Dulce de leche 1 Kg	= 48:50
-Fideos secos al huevo 500 grs	= 52:54
-Galletitas al agua 140 grs	= 61 (140g) 62(120g)
-Harina trigo común 0000  1 kg	= 76:78
-Huevos colorados 1/2 docena	= 85:87
-Manteca 200 grs	= 102:104
-Pan flauta 215 grs	= 121
-Papel higiénico hoja simple 4 rollos 30 mts	= 122:124
-Pollo entero fresco con menudos 1 kg	= 130:132
-Pulpa de tomate 1 Lt	= 133:135
-Sal fina yodada fluorada 500 grs	= 140:142
-Yerba mate común 1 Kg	= 149:151
-
-EXTRA:
-café = 26:28
-fideos de sémola = 55:57
-
+```
