@@ -26,6 +26,8 @@ Por otro lado, a raíz de la amplia diversidad de los productos de los cuales se
 
 El objetivo del trabajo es generar un análisis y visualizaciones que permitan ver las variaciones en los precios de dichos productos a lo largo del tiempo, en distintos lugares dentro del país y en establecimientos dentro de Montevideo. Esto resultaría de utilidad para ayudar a los consumidores a tomar mejores decisiones financieras a la hora de comprar alimentos.
 
+Un objetivo adicional es el de utilizar modelos para predecir los precios de los productos en el futuro. 
+
 # Datos
 
 El SIPC presenta los datos en tres datasets:
@@ -115,8 +117,7 @@ productos <- read_csv2("datos/productos.csv", locale = readr::locale(encoding = 
 
 precios_canasta <- left_join(precios_canasta, establecimientos, by = c("id_establecimientos" = "id.establecimientos")) %>% 
   left_join(productos, by = c("id_producto" = "id.producto")) %>% 
-  filter_at(c("long", "lat"), function(x) !is.na(x)) %>% 
-  mutate(year_month=as.Date(ym(paste(str_sub(year_month,start=1,end=4),str_sub(year_month,start=5,end=6),sep="-"))))
+  filter_at(c("long", "lat"), function(x) !is.na(x))
 
 precios_canasta <- st_as_sf(precios_canasta, coords = c("lat", "long")) %>% 
   st_set_crs(4326) %>% 
@@ -186,12 +187,19 @@ ggplot(data=df_depto %>% left_join(fideos_dpto, by = c("DEPTO" = "id.depto"))) +
 
 # Modelo estadístico
 
-USAMOS ESTO PARA HACER EL MODELO:
+Para la confección del modelo estadístico, el producto seleccionado fue el paquete de fideos. Se decidió hacer una serie temporal, para predecir el precio que tendrá este producto en el futuro.
 
-XGBOOST TIME SERIES FORECAST IN R
-http://datasideoflife.com/?p=1009
+En primer lugar se filtraron los datos para trabajar solamente con los precios del producto elegido. Para cada período (mes) se cuenta con precios por marca y por establecimientos, por lo tanto se agregó la información calculando distintas "variables de respuesta":
 
-Predicción del modelo inicial:
+1. Promedio general del precio de los fideos en cada período
+2. Promedio del precio de los fideos para cada marca en cada período
+3. Promedio del precio de los fideos según la ubicación del establecimiento que los distribuye (separando según Montevideo y el Interior)
+
+En cuanto a las herramientas utilizadas, se escogieron los paquetes caret y xgboost para construir el modelo; y el paquete forecast para visualizar sus predicciones. El modelo se construyó en base a las instrucciones brindadas por la página (poner como link) (http://datasideoflife.com/?p=1009).
+
+A continuación se muestran las predicciones obtenidas en cada caso
+
+1. Modelo general del precio de los fideos
 
 ```{r}
 fideos <- precios %>% 
@@ -200,7 +208,7 @@ fideos <- precios %>%
   summarise(precio = mean(avg)) %>% 
   mutate(year = year(year_month),
          month = month(year_month), .before = 1) %>% 
-  add_case(year = c(rep(2023, 9), rep(2024, 12)), month = c(4:12, 1:12)) 
+  add_case(year = c(rep(2023, 9), rep(2024, 12), rep(2025, 12)), month = c(4:12, 1:12, 1:12)) 
 
 x_train <- fideos %>% filter(!is.na(precio)) %>% select(year, month) %>% as.matrix()
 
@@ -212,7 +220,7 @@ xgb_trcontrol <- caret::trainControl(
   # metodo para sacar la remuestra
   method = "boot",
   # method = "cv", 
-   number = 5,
+   number = 5, # cantidad de folds (cv) o remuestreos (bs)
    allowParallel = TRUE,
    returnData = FALSE
 )
@@ -231,22 +239,48 @@ xgb_grid <- base::expand.grid(
 xgb_model <- caret::train(
    x_train, y_train,
    trControl = xgb_trcontrol,
-   tuneGrid = xgb_grid,
+   #tuneGrid = xgb_grid,
    method = "xgbTree",
    nthread = 1
 )
 
 xgb_pred <- xgb_model %>% stats::predict(x_pred)
 
-fideos <- fideos %>% mutate(precio = c(y_train, xgb_pred),
-                            year_month = as.Date(ym(paste(year, "-", month))),
-                            pred = ifelse(year_month < "2023-04-01", F, T))
+fitted <- xgb_model %>%
+    stats::predict(x_train) %>%
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)),
+              frequency = 12)
 
-ggplot(data = fideos, aes(x = year_month, y = precio, color = pred)) +
-  geom_point() +
-  scale_color_manual("Valores predichos", labels = c("NO", "SI"), values = c("black", "red"))
+xgb_forecast <- xgb_pred %>%
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(is.na(year_month)) %>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
+              end = zoo::as.yearmon(max((fideos %>% filter(is.na(year_month))%>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
+              frequency = 12)
 
+ts <- y_train %>% 
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              frequency = 12)
+
+forecast_list <- list(
+   model = xgb_model$modelInfo,
+   method = xgb_model$method,
+   mean = xgb_forecast,
+   x = ts, 
+   fitted = fitted,
+   residuals = as.numeric(ts) - as.numeric(fitted)
+)
+class(forecast_list) <- "forecast"
+
+forecast::autoplot(forecast_list)
 ```
+
+
+
+
+
+
+
 ```{r}
 # Descripción de la aplicación
 
