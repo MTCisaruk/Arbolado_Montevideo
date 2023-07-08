@@ -199,7 +199,7 @@ En cuanto a las herramientas utilizadas, se escogieron los paquetes caret y xgbo
 
 A continuación se muestran las predicciones obtenidas en cada caso
 
-1. Modelo general del precio de los fideos
+## 1. Modelo general del precio de los fideos
 
 ```{r}
 fideos <- precios %>% 
@@ -275,8 +275,188 @@ class(forecast_list) <- "forecast"
 forecast::autoplot(forecast_list)
 ```
 
+## 2. Modelo según la marca
 
+```{r}
+fideos <- precios %>% 
+  filter(id_producto %in% c(55, 56, 57)) %>% 
+  group_by(year_month, marca) %>% 
+  summarise(precio = mean(avg)) %>% 
+  pivot_wider(names_from = marca, values_from = precio) %>% 
+  mutate(year = year(year_month),
+         month = month(year_month), .before = 1) %>% 
+  ungroup(year_month) %>% 
+  add_case(year = c(rep(2023, 9), rep(2024, 12), rep(2025, 12)), month = c(4:12, 1:12, 1:12)) 
 
+xgb_trcontrol <- caret::trainControl(
+  # metodo para sacar la remuestra
+  method = "boot",
+  # method = "cv", 
+   number = 5, # cantidad de folds (cv) o remuestreos (bs)
+   allowParallel = TRUE,
+   returnData = FALSE
+)
+```
+
+### Modelo de la marca Adria (no hay datos para algunos meses)
+
+```{r}
+# Modelo de la marca Adria (no hay datos para algunos meses)
+
+x_train <- fideos %>% filter(!is.na(year_month) & year_month < "2022-09-01
+") %>% select(year, month) %>% as.matrix()
+
+y1_train <- c(fideos %>% filter(!is.na(year_month) & year_month < "2022-09-01
+") %>% select(Adria))[[1]]
+
+x_pred <- fideos %>% filter(year_month >= "2022-09-01
+") %>% select(year, month) %>% as.matrix()
+
+xgb_model <- caret::train(
+   x_train, y1_train,
+   trControl = xgb_trcontrol,
+   #tuneGrid = xgb_grid,
+   method = "xgbTree",
+   nthread = 1
+)
+
+xgb_pred <- xgb_model %>% stats::predict(x_pred)
+
+fitted <- xgb_model %>%
+    stats::predict(x_train) %>%
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)),
+              frequency = 12)
+
+xgb_forecast <- xgb_pred %>%
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(is.na(year_month)) %>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
+              end = zoo::as.yearmon(max((fideos %>% filter(is.na(year_month))%>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
+              frequency = 12)
+
+ts <- y1_train %>% 
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              frequency = 12)
+
+forecast_list <- list(
+   model = xgb_model$modelInfo,
+   method = xgb_model$method,
+   mean = xgb_forecast,
+   x = ts, 
+   fitted = fitted,
+   residuals = as.numeric(ts) - as.numeric(fitted)
+)
+class(forecast_list) <- "forecast"
+
+forecast::autoplot(forecast_list)
+```
+
+### Modelo de la marca Las Acacias
+
+```{r}
+x_train <- fideos %>% filter(!is.na(year_month)) %>% select(year, month) %>% as.matrix()
+
+y2_train <- c(fideos %>% filter(!is.na(year_month)) %>% select(`Las Acacias - franja celeste`))[[1]]
+
+x_pred <- fideos %>% filter(is.na(year_month)) %>% select(year, month) %>% as.matrix()
+
+xgb_model <- caret::train(
+   x_train, y2_train,
+   trControl = xgb_trcontrol,
+   #tuneGrid = xgb_grid,
+   method = "xgbTree",
+   nthread = 1
+)
+
+xgb_pred <- xgb_model %>% stats::predict(x_pred)
+
+fitted <- xgb_model %>%
+    stats::predict(x_train) %>%
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)),
+              frequency = 12)
+
+xgb_forecast <- xgb_pred %>%
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(is.na(year_month)) %>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
+              end = zoo::as.yearmon(max((fideos %>% filter(is.na(year_month))%>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
+              frequency = 12)
+
+ts <- y2_train %>% 
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              frequency = 12)
+
+forecast_list <- list(
+   model = xgb_model$modelInfo,
+   method = xgb_model$method,
+   mean = xgb_forecast,
+   x = ts, 
+   fitted = fitted,
+   residuals = as.numeric(ts) - as.numeric(fitted)
+)
+class(forecast_list) <- "forecast"
+
+forecast::autoplot(forecast_list)
+```
+
+### Modelo de la marca Puritas
+
+```{r}
+x_train <- fideos %>% filter(!is.na(year_month)) %>% select(year, month) %>% as.matrix()
+
+y3_train <- c(fideos %>% filter(!is.na(year_month)) %>% select(Puritas))[[1]]
+
+x_pred <- fideos %>% filter(is.na(year_month)) %>% select(year, month) %>% as.matrix()
+
+xgb_model <- caret::train(
+   x_train, y3_train,
+   trControl = xgb_trcontrol,
+   #tuneGrid = xgb_grid,
+   method = "xgbTree",
+   nthread = 1
+)
+
+xgb_pred <- xgb_model %>% stats::predict(x_pred)
+
+fitted <- xgb_model %>%
+    stats::predict(x_train) %>%
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)),
+              frequency = 12)
+
+xgb_forecast <- xgb_pred %>%
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(is.na(year_month)) %>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
+              end = zoo::as.yearmon(max((fideos %>% filter(is.na(year_month))%>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
+              frequency = 12)
+
+ts <- y3_train %>% 
+    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)), 
+              frequency = 12)
+
+forecast_list <- list(
+   model = xgb_model$modelInfo,
+   method = xgb_model$method,
+   mean = xgb_forecast,
+   x = ts, 
+   fitted = fitted,
+   residuals = as.numeric(ts) - as.numeric(fitted)
+)
+class(forecast_list) <- "forecast"
+
+forecast::autoplot(forecast_list)
+
+# xgb_grid <- base::expand.grid(
+#    list(
+#     nrounds = c(100, 200),
+#     max_depth = c(10, 15, 20), # maximum depth of a tree
+#     colsample_bytree = seq(0.5), # subsample ratio of columns when construction each tree
+#     eta = 0.1, # learning rate
+#     gamma = 0, # minimum loss reduction
+#     min_child_weight = 1,  # minimum sum of instance weight (hessian) needed ina child
+#     subsample = 1 # subsample ratio of the training instances
+# ))
+```
 
 
 
