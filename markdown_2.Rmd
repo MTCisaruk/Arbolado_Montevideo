@@ -32,11 +32,13 @@ Este proyecto surge a partir de la información provista por el SIPC (Sistema de
 
 Por otro lado, a raíz de la amplia diversidad de los productos de los cuales se tienen datos, se decidió tomar solamente aquellos que son parte de la CBA (Canasta Básica de Alimentos) de Uruguay.
 
-El objetivo del trabajo es generar un análisis y visualizaciones que permitan ver las variaciones en los precios de dichos productos a lo largo del tiempo, en distintos lugares dentro del país y en establecimientos dentro de Montevideo. Esto resultaría de utilidad para ayudar a los consumidores a tomar mejores decisiones financieras a la hora de comprar alimentos.
+El objetivo del trabajo es generar un análisis y visualizaciones que permitan ver las variaciones en los precios de dichos productos a lo largo del tiempo, en distintos lugares dentro del país y en establecimientos dentro de Montevideo. Esto resultaría de utilidad para ayudar a los consumidores a tomar mejores decisiones financieras a la hora de comprar alimentos. 
 
 Un objetivo adicional es el de utilizar modelos basados en series temporales para predecir los precios de los productos en el futuro.
 
-El producto final que se busca proveer es una aplicación interactiva que para cada uno de los productos presentes en la CBA, despliegue una serie de visualizaciones descriptivas de su precio, en función de los aspectos mencionados anteriormente.
+El producto final que se busca proveer es una aplicación interactiva mediante el paquete *Shiny* [@shiny] que para cada uno de los productos presentes en la CBA, despliegue una serie de visualizaciones descriptivas de su precio, en función de los aspectos mencionados anteriormente.
+
+A lo largo del informe se usarán los datos de los precios de los fideos como un proxy para explicar los datos, dado que no se encontró una forma de ponderar los precios de la canasta básica. Sin embargo, la aplicación de Shiny permitirá seleccionar los productos de manera individual.
 
 # Datos
 
@@ -76,6 +78,7 @@ Los productos son:
 - Fideos secos de sémola 500 g (agregado)
 
 A partir de los datasets, se construyó uno con el precio promedio mensual para cada producto (desagregándolo según las marcas y establecimientos), que incluyera parte de la información presente en Establecimientos (el nombre de la sucursal, cadena, coordenadas, barrio y departamento) y Productos (nombre y marca). Para eso se utilizaron las *keys* respectivas, id.establecimientos e id_productos.
+
 
 ```{r consulta SQL, eval = F}
 usethis::edit_r_environ(
@@ -138,7 +141,7 @@ saveRDS(precios_canasta, "precios_canasta.RDS")
 
 ```{r cargar datos}
 establecimientos <- read_delim("datos/establecimiento.csv", delim = ";", locale = locale(encoding = "latin1")) %>% 
-  select(id.establecimientos, nombre.sucursal, barrio, cadena, long, lat, depto, id.depto) %>% 
+  select(id.establecimientos, nombre.sucursal, ccz, cadena, long, lat, depto, id.depto) %>% 
   mutate(lat=as.numeric(sub(',','.',lat,fixed=T)),
          long=as.numeric(sub(',','.',long,fixed=T)),
          # arreglamos Ta Ta que le faltaba el signo 
@@ -156,25 +159,10 @@ df_mvdeo <- st_as_sf(vect(here("Mapas","ine_ccz_mvd.shp")))
 
 # Análisis exploratorio
 
-```{r eval = F}
+Para comenzar con el análisis de los datos, se intentó visualizar a grandes rasgos las características de los productos y establecimientos disponibles.
 
-ggplot(filter(precios,id_producto %in% 55:57 & id_establecimientos == 2),aes(x=year_month,y=avg)) + geom_point() + geom_smooth()
+Para los establecimientos, resulta interesante ver cómo se distribuyen en el territorio del país. Para eso se graficó un mapa donde cada uno es representado por una cruz. Además, a través de un gráfico de barras se presenta la cantidad por departamento.
 
-```
-
-Evolución de precios de las distintas marcas de fideos
-
-```{r}
-precios %>% 
-  filter(id_producto %in% 55:57 & avg > 0) %>% 
-  group_by(id_producto, year_month) %>% 
-  summarise(precio = mean(avg)) %>% 
-  ggplot(aes(x = year_month, y = precio, color = as.factor(id_producto))) +
-  geom_line(linewidth = 1) +
-  geom_point()
-```
-
-Mapa de los establecimientos
 
 ```{r mapa_establecimientos}
 ggplot() + 
@@ -185,11 +173,81 @@ ggplot() +
   theme(plot.title=element_text(hjust=1/2))
 ```
 
-Mapa del precio promedio de los fideos según departamento
+```{r fig.cap = "Cantidad de establecimientos por departamento. Mas del 60% se concentran en Montevideo"}
+
+precios %>% 
+  filter(!duplicated(id_establecimientos)) %>% 
+  group_by(depto = trimws(depto)) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(x = reorder(depto, -n), y = n)) +
+  geom_bar(fill = "#baeb34", stat = "identity") +
+  geom_text(aes(label = n, y = n + 10)) +
+  labs(x = "departamento", y = "cantidad de establecimientos") +
+    theme_bw() +
+  theme(axis.text.x = element_text(angle = 35))
+```
+
+Como es posible ver en ambos gráficos, los establecimientos encuestados se distribuyen principalmente sobre la costa y en la capital. Algunos departamentos casi no están representados, dada la baja cantidad de establecimientos encuestados.
+
+Siguiendo con los establecimientos, también interesa saber qué proporción pertenece a una cadena, y cuáles son las cadenas que tienen la mayor cantidad de establecimientos
+
+```{r fig.cap = "Proporción de establecimientos que pertenecen a una cadena de supermercados. Más del 80% pertenecen a alguna de las cadenas"}
+
+precios %>% 
+  filter(!duplicated(id_establecimientos)) %>%
+  mutate(cadena = ifelse(cadena == "Sin Cadena", "NO", "SI")) %>% 
+  group_by(cadena) %>% 
+  summarise(n = n()/nrow(.)) %>% 
+  ggplot(aes(x = cadena, y = n, fill = cadena)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous("", labels = scales::percent) +
+  scale_fill_discrete("El establecimiento pertenece a una cadena:", breaks = c("SI", "NO")) +
+  coord_flip() +
+  labs(x = " ", y = "") +
+  theme_bw()
+```
+
+Cómo se puede observar, la mayoría de los establecimientos forman parte de una cadena. A continuación se presentan las diez cadenas con la mayor cantidad de establecimientos
+
+```{r fig.cap = "Cadenas con la mayor cantidad de establecimientos. Los porcentajes son con respecto a la cantidad total de establecimientos."}
+
+precios %>% 
+  filter(!duplicated(id_establecimientos)) %>% 
+  count(cadena) %>% 
+  filter(cadena != "Sin Cadena" & n > 20) %>% 
+  ggplot(aes(x = reorder(cadena, -n), y = n)) + 
+  geom_bar(stat = "identity", fill = "#baeb34") +
+  geom_text(aes(y = n + 5, label = paste(round(n/(nrow(precios %>% filter(!duplicated(id_establecimientos))))*100, 1), "%"))) +
+  labs(x = "Cadena", y = "Cantidad de establecimientos") +
+  theme_bw()
+
+```
+
+Este gráfico permite dar cuenta que más de la mitad de los establecimientos relevados corresponden a solamente cinco cadenas. Sumando las diez con mayor cantidad, ese porcentaje alcanza el 70%.
+
+
+Por otro lado, como referencia de los productos se hizo una comparativa de los precios de fideos a lo largo del tiempo entre las distintas marcas y tipos (de sémola o al huevo). Se observó que todos los productos aumentan a un mismo ritmo con excepción de los fideos Puritas, que mantuvieron su precio durante años, lo cual resulta bastante extraño.
+
+```{r, fig.cap="Precio de los fideos a lo largo del tiempo"}
+precios %>% 
+  filter(id_producto %in% 52:57 & avg > 0) %>% 
+  group_by(id_producto, year_month,nombre) %>% 
+  summarise(precio = mean(avg)) %>% 
+  ggplot(aes(x = year_month, y = precio, color = as.factor(nombre))) +
+  geom_line(linewidth = 1) +
+  scale_color_discrete("Producto:") +
+  xlab("fecha")
+```
+
+Analizando los precios de los fideos por región se notó bastante homogeneidad a nivel departamental, con algunas excepciones que también se podrían explicar por el bajo tamaño de muestra o la ausencia de marcas baratas/caras en alguno de los departamentos.
+
+Dentro de Montevideo se notaron más diferencias. Los barrios de mayor poder adquisitivo tienen los precios más elevados y las áreas rurales los precios más bajos.
 
 ```{r mapa_precios}
 fideos_dpto <- precios %>% 
-  filter(id_producto %in% c(55, 56, 57)) %>% 
+  filter(id_producto %in% 52:57) %>% 
+#  group_by(id.depto,id_producto) %>% 
+#  summarise(precio = mean(avg)) %>% 
   group_by(id.depto) %>% 
   summarise(precio = mean(avg))
 
@@ -197,13 +255,32 @@ ggplot(data=df_depto %>% left_join(fideos_dpto, by = c("DEPTO" = "id.depto"))) +
   geom_sf(aes(fill=precio),color="gray20") +
   scale_fill_gradientn(colours = brewer.pal(5, "OrRd")) +
   theme_void() +
-  labs(title="Establecimientos") +
+  labs(title="Departamentos") +
   theme(plot.title=element_text(hjust=1/2))
 
 
 
 ```
 
+```{r mapa_precios_mvd}
+cczjoin <- select(establecimientos,c(id.establecimientos,ccz))
+fideos_mvd <- precios %>% 
+  filter(id_producto %in% 52:57,depto=="Montevideo") %>% left_join(cczjoin,by=c("id_establecimientos"="id.establecimientos"),suffix=c("","")) |>  
+#  group_by(ccz,id_producto) %>% 
+#  summarise(precio = mean(avg)) %>% 
+  group_by(ccz) %>% 
+  summarise(precio = mean(avg))
+
+ggplot(data=df_mvdeo %>% left_join(fideos_mvd, by = c("CCZ" = "ccz"))) + 
+  geom_sf(aes(fill=precio),color="gray20") +
+  scale_fill_gradientn(colours = brewer.pal(5, "OrRd")) +
+  theme_void() +
+  labs(title="Municipios") +
+  theme(plot.title=element_text(hjust=1/2))
+
+
+
+```
 
 # Modelo estadístico
 
@@ -211,19 +288,12 @@ En esta sección se describe el proceso de construcción de un modelo del precio
 
 Para la confección del modelo, el producto seleccionado fue el paquete de fideos. Entre los productos trabajados, existen dos variedades de fideos: al huevo y semolados. A su vez, para cada variedad hay tres marcas.
 
-En primer lugar se filtraron los datos para trabajar solamente con los precios del producto elegido. Para cada período (mes) se cuenta con precios por variedad, marca y por establecimientos. A su vez, todas las variedades y marcas registran el precio de paquetes de fideos del mismo tamaño (500 gramos). Por lo tanto, tuvo sentido agregar la información según varias, agrupaciones, calculando distintas "variables de respuesta":
+En primer lugar se filtraron los datos para trabajar solamente con los precios del producto elegido. Para cada período (mes) se cuenta con precios por variedad, marca y establecimientos. Como todas las variedades y marcas registran el precio de paquetes de fideos del mismo tamaño (500 gramos), tuvo sentido utilizar como variable respuesta el promedio de todas las marcas y variedades presentes en los datos.
 
-1. Promedio general del precio de los fideos
-2. Promedio del precio de los fideos para cada marca
-3. Promedio del precio de los fideos según la ubicación del establecimiento que los distribuye (separando según Montevideo y el Interior)
+En cuanto a las herramientas utilizadas, se exploraron varias alternativas hasta llegar a una satisfactoria. En primer lugar se escogieron los paquetes **caret** [@caret] y **xgboost** [@xgboost] para construir el modelo; y el paquete **forecast** [@forecast] para visualizar sus predicciones. El modelo se construyó en base a las instrucciones brindadas de este en un blog [@articuloxgboost]. El problema de esta opción fue que el modelo creado no reconocía que la variable provista era el tiempo. Como indica la guía, la variable de tipo *Date* utilizada como explicativa se separa en dos: una indica el año y la otra el mes de la fecha correspondiente. Sin embargo, para el modelo esas dos variables son simplemente numéricas, y lo que es peor, son tratadas como independientes entre sí. 
 
-En cuanto a las herramientas utilizadas, se exploraron varias alternativas hasta llegar a una satisfactoria. En primer lugar se escogieron los paquetes **caret** y **xgboost** para construir el modelo; y el paquete **forecast** para visualizar sus predicciones. El modelo se construyó en base a las instrucciones brindadas de este [artículo](http://datasideoflife.com/?p=1009). El problema de esta opción fue que el modelo creado no reconocía que la variable provista era el tiempo. Como indica la guía, la variable de tipo *Date* utilizada como explicativa se separa en dos: una indica el año y la otra el mes de la fecha correspondiente. Sin embargo, para el modelo esas dos variables son simplemente numéricas, y lo que es peor, son tratadas como independientes entre sí. 
+Este problema se reflejó en predicciones que mostraban un patrón de variaciones que se repetía año a año, pero a pesar de la clara tendencia de aumento de los precios a lo largo del tiempo, los predichos se mantenían en un mismo rango. A continuación se muestra el resultado de las predicciones utilizando esta herramienta.
 
-Este problema se reflejó en predicciones que mostraban un patrón de variaciones que se repetía año a año, pero a pesar de la clara tendencia de aumento de los precios a lo largo del tiempo, los predichos se mantenían en un mismo rango. A continuación se muestra el resultado de las predicciones utilizando esta herramienta para el caso del promedio general de precios.
-
-A continuación se muestran las predicciones obtenidas en cada caso
-
-## 1. Modelo general del precio de los fideos
 
 ```{r, warning = F, fig.cap = "Prediccion del precio promedio de los fideos. El tramo en azul corresponde al período predicho.",message=F}
 fideos <- precios %>% 
@@ -300,7 +370,7 @@ class(forecast_list) <- "forecast"
 forecast::autoplot(forecast_list)
 ```
 
-En segundo lugar se optó por los paquetes **modeltime** y **timetk** para construir las series de tiempo. También se utilizó **tidymodels**, que brinda la posibilidad de utilizar la gramática de tidyverse en la confección de modelos. Estos paquetes difieren de los utilizados anteriormente en el sentido de que están específicamente diseñados para modelar con series de tiempo. A modo de ejemplo, en este caso la variable explicativa puede utilizarse en su clase natural (*Date*), en vez de transformarla a una o más numéricas.
+En segundo lugar se optó por los paquetes **modeltime** [@modeltime] y **timetk** [@timetk] para construir las series de tiempo. También se utilizó **tidymodels** [@tidymodels], que brinda la posibilidad de utilizar la gramática de tidyverse en la confección de modelos. Estos paquetes difieren de los utilizados anteriormente en el sentido de que están específicamente diseñados para modelar con series de tiempo. A modo de ejemplo, en este caso la variable explicativa puede utilizarse en su clase natural (*Date*), en vez de transformarla a una o más numéricas.
 
 Se realizaron 3 regresiones: ARIMA, GLMNET y Prophet. Para ello se seleccionaron los conjuntos de entrenamiento (*training*) y prueba (*test*). Para el primero se tomaron los datos desde el primer mes disponible hasta diciembre de 2022. Para el segundo se tomaron los primeros 3 meses de 2023 (los últimos períodos para los que hay datos). Los demás parámetros de cada regresión de dejaron con sus valores por defecto. Una vez creados los modelos, se utilizó la función modeltime_table de **modeltime** para integrarlos en una tabla y así llevar a cabo un análisis de los tres en conjunto.
 
@@ -374,7 +444,7 @@ calib_tbl %>%
 ```
 Como se puede ver, los tres modelos predicen que el precio de los fideos va a aumentar en los próximos 9 meses.
 
-En cuanto a la tabla, las medidas corresponden a distintas formas de agregar el *error de predicción*, que se define como la diferencia entre los datos del conjunto de prueba y las predicciones del modelo. Según el libro **Forecasting: Principles and Practice** se pueden clasificar en tres tipos:
+En cuanto a la tabla, las medidas corresponden a distintas formas de agregar el *error de predicción*, que se define como la diferencia entre los datos del conjunto de prueba y las predicciones del modelo. Según el libro *Forecasting: Principles and Practice* [@Hyndman_Athanasopoulos_2018], se pueden clasificar en tres tipos:
 - Dependientes de la escala (de la variable respuesta): mae y rmse
 - Errores porcentuales: mape y smape
 - No dependientes de la escala: mase
@@ -391,32 +461,41 @@ A modo de conclusión, el modelo predice que al final del año 2023 el precio de
 
 
 ```{r, eval=F}
-
+library(RColorBrewer)
+library(shiny)
+library(leaflet)
+library(plotly)
 preciosmvd <- filter(precios,depto=="Montevideo") |> select(-c(id_producto,nombre.sucursal,barrio,cadena,depto,id.depto,nombre,geometry))
-
 anho2023 <- c("2023-01-01","2023-02-01","2023-03-01")
-
-establecimientosmvd <- filter(establecimientos, id.establecimientos %in% preciosmvd$id_establecimientos) |> filter(!(id.establecimientos==874)) |>  # se elimina porque está en durazno o mal puesta
-  select(-c(barrio,depto,id.depto))
-
-productos2 <- levels(as.factor(preciosmvd$producto))
 marcas <- levels(as.factor(preciosmvd$marca))
+
+establecimientosmvd <- filter(establecimientos,id.establecimientos %in% preciosmvd$id_establecimientos) |> filter(!(id.establecimientos==874)) |>  # se elimina porque está en durazno o mal puesta
+  select(-c(ccz,depto,id.depto))
+
+productos2 <- levels(as.factor(precios$producto))
+
 
 ui <- fluidPage(
   titlePanel("Mapa"),
   sidebarLayout(
     sidebarPanel=sidebarPanel(
       selectizeInput("eleg_producto",'Producto:',choices=productos2,options = list(maxItems = 1)),
-      selectizeInput("eleg_marca",'Marca:',choices=marcas) # Cómo hago un input reactivo
+      selectInput("eleg_marca",'Marca:',choices=marcas,multiple = TRUE) # Cómo hago un input reactivo
     ),
-    mainPanel=mainPanel(leafletOutput("mapa"))
+    mainPanel=mainPanel(
+      tabsetPanel(type="tabs",
+        tabPanel("Establecimientos de Montevideo", leafletOutput("mapa")),
+        tabPanel("Precios por departamento",plotOutput("uruguay")),
+        tabPanel("Predicción de precio",plotlyOutput("modelo"))
+        )
+    )
   )
 )
 server <- function(input, output) {
    observe({
-    marcas <- levels(as.factor(filter(preciosmvd,producto %in% input$eleg_producto)$marca))
-    updateSelectizeInput(session=getDefaultReactiveDomain(),"eleg_marca","Marca:",choices=marcas)
-   })
+    updateSelectInput(session=getDefaultReactiveDomain(),"eleg_marca","Marca:",choices=levels(as.factor(filter(preciosmvd,producto %in% input$eleg_producto)$marca)))
+    
+ })
   preciosproducto <- reactive({
     filter(preciosmvd,
            producto %in% input$eleg_producto,
@@ -440,15 +519,85 @@ server <- function(input, output) {
     })
   output$mapa <- renderLeaflet({
     establecimientosproducto <- establecimientosproducto()
-    # pal <- colorNumeric(palette = "OrRd",domain = establecimientosproducto$precio)
+    pal <- colorNumeric(palette = "OrRd",domain = establecimientosproducto$precio)
   leaflet(establecimientosproducto) %>% addTiles() %>%
       fitBounds(-56.270, -34.836, -56.091, -34.929)%>%
       clearShapes() %>%
-      addCircles(radius=15,weight = 0.5, color = "black",fillColor = "red", fillOpacity = 0.7, popup = ~paste("Local:",nombre.sucursal,"<br>","Precio:",precio))
+      addCircles(radius=15,weight = 0.5, color = "black",fillColor = ~pal(precio), fillOpacity = 0.7, popup = ~paste("Local:",nombre.sucursal,"<br>","Precio:",precio))
+  })
+  
+  
+  
+  output$uruguay <- renderPlot({
+  prod_dpto <- precios %>% 
+  filter(id_producto %in% input$eleg_producto, marca %in% input$eleg_marca) %>% 
+  group_by(id.depto) %>% 
+  summarise(precio = mean(avg))
+  output
+ggplot(data=df_depto %>% left_join(prod_dpto, by = c("DEPTO" = "id.depto"))) + 
+  geom_sf(aes(fill=precio),color="gray20") +
+  scale_fill_gradientn(colours = brewer.pal(5, "OrRd")) +
+  theme_void() +
+  labs(title="Departamentos") +
+  theme(plot.title=element_text(hjust=1/2))
+})
+  
+      prod <- reactive({
+        precios %>% 
+  filter(producto %in% input$eleg_producto & marca %in% input$eleg_marca) %>% 
+  group_by(year_month) %>% 
+  summarise(precio = mean(avg))
+        })
+output$modelo <- renderPlotly({
+  prod <- prod()
+splits <- time_series_split(prod, year_month, assess = "3 months")
+
+model_arima <- arima_reg() %>% 
+  set_engine("auto_arima") %>% 
+  fit(precio ~ year_month, training(splits))
+  
+  model_glmnet <- linear_reg(penalty = 0.01) %>% 
+  set_engine("glmnet") %>% 
+  fit(precio ~ month(year_month) + as.numeric(year_month), training(splits))
+
+model_prophet <- prophet_reg() %>% 
+  set_engine("prophet") %>% 
+  fit(precio ~ year_month, training(splits))
+
+  model_tbl <- modeltime_table(
+  model_arima,
+  model_prophet,
+  model_glmnet
+)
+  calib_tbl <- model_tbl %>% 
+  modeltime_calibrate(testing(splits))
+  future_forecast <- calib_tbl %>% 
+  modeltime_refit(prod) %>% 
+  modeltime_forecast(h = "9 months", actual_data = prod)
+  
+  future_forecast %>% plot_modeltime_forecast(
+  .title = paste("Precio de", input$eleg_producto, "entre 2016 y 2023 ($)"),
+  .conf_interval_alpha = 0.1)
   })
 }
 shinyApp(ui, server)
 ```
+
+# Conclusiones y perspectiva de futuro
+
+Los datos del Sistema de Información de Precios al Consumidor tienen mucho potencial de análisis si se trabaja sobre el marco correcto. La cantidad de dimensiones y variables con las que cuenta permite estudiar una amplio rango de problemas relacionados al consumo.
+
+El modelo estadístico constituye otro ejemplo de lo útil que es tener un registro de los precios de los productos a lo largo del tiempo, ya que estos pueden ser utilizados para construir predicciones que permiten una buena planificación tanto de políticas públicas como de las decisiones que toman las empresas y los consumidores. 
+
+Otro punto a resaltar es la amplia variedad de herramientas que provee R para fácilmente y sin ser expertos, poder armar distintos tipos de modelos y entender sus componentes y características para poder interpretarlos correctamente.
+
+Por otro lado, sólo con un análisis superficial ya se encontraron varios datos erróneos o mal ingresados que deberían de evaluarse más a profundidad. En particular se encontraron varios datos de ubicación erróneos y establecimientos que no tienen los productos que dicen tener si se los visita físicamente.
+
+También resultaría enriquecedor para el análisis que se incluyera una mayor representación de establecimientos en el interior del país, ya que la gran mayoría están ubicados en la capital; y una mayor cantidad de productos, especialmente aquellos que son más habituales para el consumo de la población, como por ejemplo las frutas y verduras.
+
+Un análisis a futuro podría incluir distintos productos y la utilización de ponderadores para generar una canasta básica, como los que generó la escuela de nutrición [@canastanutricion]. De esa forma sería posible analizar los productos de manera agregada en vez de individualmente.
+
+
 
 # Referencias
 
