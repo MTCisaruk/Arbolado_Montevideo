@@ -3,6 +3,9 @@ title: "Precios al consumidor"
 author: "Manuel Toledo y Lucas Pescetto"
 date: "`r Sys.Date()`"
 output: pdf_document
+bibliography: refs.bib
+csl: apa.csl
+nocite: '@*'
 ---
 
 ```{r setup, include=FALSE, message = FALSE}
@@ -13,7 +16,6 @@ library(tidyverse)
 library(sf)
 library(leaflet)
 library(terra)
-library(lubridate)
 library(RColorBrewer)
 library(xgboost)
 library(caret)
@@ -223,7 +225,7 @@ A continuación se muestran las predicciones obtenidas en cada caso
 
 ## 1. Modelo general del precio de los fideos
 
-```{r, warning = F, fig.cap = "Prediccion del precio promedio de los fideos. El tramo en azul corresponde al período predicho."}
+```{r, warning = F, fig.cap = "Prediccion del precio promedio de los fideos. El tramo en azul corresponde al período predicho.",message=F}
 fideos <- precios %>% 
   filter(id_producto %in% c(52, 53, 54, 55, 56, 57)) %>% 
   group_by(year_month) %>% 
@@ -263,7 +265,8 @@ xgb_model <- caret::train(
    trControl = xgb_trcontrol,
    #tuneGrid = xgb_grid,
    method = "xgbTree",
-   nthread = 1
+   nthread = 1,
+   verbosity = 0
 )
 
 xgb_pred <- xgb_model %>% stats::predict(x_pred)
@@ -447,7 +450,9 @@ server <- function(input, output) {
 shinyApp(ui, server)
 ```
 
+# Referencias
 
+<div id="refs"></div>
 
 ```{r}
 # Descripción de la aplicación
