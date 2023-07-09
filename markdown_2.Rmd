@@ -11,11 +11,16 @@ library(readr)
 library(here)
 library(tidyverse)
 library(sf)
+library(leaflet)
 library(terra)
 library(lubridate)
 library(RColorBrewer)
 library(xgboost)
 library(caret)
+library(tidymodels)
+library(modeltime)
+library(timetk)
+library(shiny)
 ```
 
 # Introducción
@@ -26,7 +31,9 @@ Por otro lado, a raíz de la amplia diversidad de los productos de los cuales se
 
 El objetivo del trabajo es generar un análisis y visualizaciones que permitan ver las variaciones en los precios de dichos productos a lo largo del tiempo, en distintos lugares dentro del país y en establecimientos dentro de Montevideo. Esto resultaría de utilidad para ayudar a los consumidores a tomar mejores decisiones financieras a la hora de comprar alimentos.
 
-Un objetivo adicional es el de utilizar modelos para predecir los precios de los productos en el futuro. 
+Un objetivo adicional es el de utilizar modelos basados en series temporales para predecir los precios de los productos en el futuro.
+
+El producto final que se busca proveer es una aplicación interactiva que para cada uno de los productos presentes en la CBA, despliegue una serie de visualizaciones descriptivas de su precio, en función de los aspectos mencionados anteriormente.
 
 # Datos
 
@@ -110,7 +117,8 @@ establecimientos <- read_delim("datos/establecimiento.csv", delim = ";", locale 
          long = ifelse(long > 0, -34.88675, long),
          # arreglamos San Roque del aeropuerto, que estaba mal
          long = ifelse(id.establecimientos == 679, -34.83675, long),
-         lat = ifelse(id.establecimientos == 679, -56.01600, lat))
+         lat = ifelse(id.establecimientos == 679, -56.01600, lat)) %>%
+         rename(lng=lat,lat=long)
 
 productos <- read_csv2("datos/productos.csv", locale = readr::locale(encoding = "latin1")) %>% 
   select(id.producto, producto, marca, nombre) 
@@ -187,23 +195,27 @@ ggplot(data=df_depto %>% left_join(fideos_dpto, by = c("DEPTO" = "id.depto"))) +
 
 # Modelo estadístico
 
-Para la confección del modelo estadístico, el producto seleccionado fue el paquete de fideos. Se decidió hacer una serie temporal, para predecir el precio que tendrá este producto en el futuro.
+En esta sección se describe el proceso de construcción de un modelo del precio de los productos en función del tiempo, que permita hacer predicciones sobre su variación en el futuro.
 
-En primer lugar se filtraron los datos para trabajar solamente con los precios del producto elegido. Para cada período (mes) se cuenta con precios por marca y por establecimientos, por lo tanto se agregó la información calculando distintas "variables de respuesta":
+Para la confección del modelo, el producto seleccionado fue el paquete de fideos. Entre los productos trabajados, existen dos variedades de fideos: al huevo y semolados. A su vez, para cada variedad hay tres marcas.
 
-1. Promedio general del precio de los fideos en cada período
-2. Promedio del precio de los fideos para cada marca en cada período
+En primer lugar se filtraron los datos para trabajar solamente con los precios del producto elegido. Para cada período (mes) se cuenta con precios por variedad, marca y por establecimientos. A su vez, todas las variedades y marcas registran el precio de paquetes de fideos del mismo tamaño (500 gramos). Por lo tanto, tuvo sentido agregar la información según varias, agrupaciones, calculando distintas "variables de respuesta":
+
+1. Promedio general del precio de los fideos
+2. Promedio del precio de los fideos para cada marca
 3. Promedio del precio de los fideos según la ubicación del establecimiento que los distribuye (separando según Montevideo y el Interior)
 
-En cuanto a las herramientas utilizadas, se escogieron los paquetes caret y xgboost para construir el modelo; y el paquete forecast para visualizar sus predicciones. El modelo se construyó en base a las instrucciones brindadas por la página (poner como link) (http://datasideoflife.com/?p=1009).
+En cuanto a las herramientas utilizadas, se exploraron varias alternativas hasta llegar a una satisfactoria. En primer lugar se escogieron los paquetes **caret** y **xgboost** para construir el modelo; y el paquete **forecast** para visualizar sus predicciones. El modelo se construyó en base a las instrucciones brindadas de este [artículo](http://datasideoflife.com/?p=1009). El problema de esta opción fue que el modelo creado no reconocía que la variable provista era el tiempo. Como indica la guía, la variable de tipo *Date* utilizada como explicativa se separa en dos: una indica el año y la otra el mes de la fecha correspondiente. Sin embargo, para el modelo esas dos variables son simplemente numéricas, y lo que es peor, son tratadas como independientes entre sí. 
+
+Este problema se reflejó en predicciones que mostraban un patrón de variaciones que se repetía año a año, pero a pesar de la clara tendencia de aumento de los precios a lo largo del tiempo, los predichos se mantenían en un mismo rango. A continuación se muestra el resultado de las predicciones utilizando esta herramienta para el caso del promedio general de precios.
 
 A continuación se muestran las predicciones obtenidas en cada caso
 
 ## 1. Modelo general del precio de los fideos
 
-```{r}
+```{r, fig.cap = "Prediccion del precio promedio de los fideos. El tramo en azul corresponde al período predicho."}
 fideos <- precios %>% 
-  filter(id_producto %in% c(55, 56, 57)) %>% 
+  filter(id_producto %in% c(52, 53, 54, 55, 56, 57)) %>% 
   group_by(year_month) %>% 
   summarise(precio = mean(avg)) %>% 
   mutate(year = year(year_month),
@@ -275,189 +287,153 @@ class(forecast_list) <- "forecast"
 forecast::autoplot(forecast_list)
 ```
 
-## 2. Modelo según la marca
+En segundo lugar se optó por los paquetes **modeltime** y **timetk** para construir las series de tiempo. También se utilizó **tidymodels**, que brinda la posibilidad de utilizar la gramática de tidyverse en la confección de modelos. Estos paquetes difieren de los utilizados anteriormente en el sentido de que están específicamente diseñados para modelar con series de tiempo. A modo de ejemplo, en este caso la variable explicativa puede utilizarse en su clase natural (*Date*), en vez de transformarla a una o más numéricas.
 
-```{r}
+Se realizaron 3 regresiones: ARIMA, GLMNET y Prophet. Para ello se seleccionaron los conjuntos de entrenamiento (*training*) y prueba (*test*). Para el primero se tomaron los datos desde el primer mes disponible hasta diciembre de 2022. Para el segundo se tomaron los primeros 3 meses de 2023 (los últimos períodos para los que hay datos). Los demás parámetros de cada regresión de dejaron con sus valores por defecto. Una vez creados los modelos, se utilizó la función modeltime_table de **modeltime** para integrarlos en una tabla y así llevar a cabo un análisis de los tres en conjunto.
+
+Pasando a la etapa de evaluación, se analizaron las diferencias entre el conjunto de prueba y las predicciones halladas. Luego se reajustó el modelo considerando la totalidad de los datos y se calcularon las predicciones para los 9 meses restantes de 2023. Además de gráficos interactivos con los valores predichos para cada regresión, el paquete **modeltime** cuenta con la función *modeltime_accuracy*, que muestra una serie de medidas para evaluar sus desempeños.
+
+A continuación se presentan imágenes con los resultados obtenidos para cada regresión en el caso del precio promedio general, y la tabla con las medidas:
+
+
+```{r include = FALSE}
+
 fideos <- precios %>% 
-  filter(id_producto %in% c(55, 56, 57)) %>% 
-  group_by(year_month, marca) %>% 
-  summarise(precio = mean(avg)) %>% 
-  pivot_wider(names_from = marca, values_from = precio) %>% 
-  mutate(year = year(year_month),
-         month = month(year_month), .before = 1) %>% 
-  ungroup(year_month) %>% 
-  add_case(year = c(rep(2023, 9), rep(2024, 12), rep(2025, 12)), month = c(4:12, 1:12, 1:12)) 
+  filter(id_producto %in% c(52, 53, 54, 55, 56, 57)) %>% 
+  group_by(year_month) %>% 
+  summarise(precio = mean(avg))
 
-xgb_trcontrol <- caret::trainControl(
-  # metodo para sacar la remuestra
-  method = "boot",
-  # method = "cv", 
-   number = 5, # cantidad de folds (cv) o remuestreos (bs)
-   allowParallel = TRUE,
-   returnData = FALSE
+splits <- time_series_split(fideos, year_month, assess = "3 months")
+
+model_arima <- arima_reg() %>% 
+  set_engine("auto_arima") %>% 
+  fit(precio ~ year_month, training(splits))
+
+model_glmnet <- linear_reg(penalty = 0.01) %>% 
+  set_engine("glmnet") %>% 
+  fit(precio ~ month(year_month) + as.numeric(year_month), training(splits))
+
+model_prophet <- prophet_reg() %>% 
+  set_engine("prophet") %>% 
+  fit(precio ~ year_month, training(splits))
+
+model_tbl <- modeltime_table(
+  model_arima,
+  model_prophet,
+  model_glmnet
 )
+
+calib_tbl <- model_tbl %>% 
+  modeltime_calibrate(testing(splits))
+
+future_forecast <- calib_tbl %>% 
+  modeltime_refit(fideos) %>% 
+  modeltime_forecast(h = "9 months", actual_data = fideos)
+
+future_forecast %>% plot_modeltime_forecast(
+  .title = "Precio de los fideos entre 2016 y 2023 ($)",
+  .conf_interval_alpha = 0.1
+)
+
 ```
 
-### Modelo de la marca Adria (no hay datos para algunos meses)
+![arima](arima.png)
+
+![prophet](prophet.png)
+
+![glmnet](glmnet.png)
 
 ```{r}
-# Modelo de la marca Adria (no hay datos para algunos meses)
 
-x_train <- fideos %>% filter(!is.na(year_month) & year_month < "2022-09-01
-") %>% select(year, month) %>% as.matrix()
+calib_tbl %>%
+    modeltime_accuracy() %>% 
+    table_modeltime_accuracy(
+      .interactive = F
+    ) %>% 
+  as.data.frame() %>% 
+  select(-c(.type, rsq)) %>% 
+  rename(" " = .model_id, modelo = .model_desc) %>% 
+  gt() %>% 
+  opt_stylize(style = 2, color = "cyan")
 
-y1_train <- c(fideos %>% filter(!is.na(year_month) & year_month < "2022-09-01
-") %>% select(Adria))[[1]]
-
-x_pred <- fideos %>% filter(year_month >= "2022-09-01
-") %>% select(year, month) %>% as.matrix()
-
-xgb_model <- caret::train(
-   x_train, y1_train,
-   trControl = xgb_trcontrol,
-   #tuneGrid = xgb_grid,
-   method = "xgbTree",
-   nthread = 1
-)
-
-xgb_pred <- xgb_model %>% stats::predict(x_pred)
-
-fitted <- xgb_model %>%
-    stats::predict(x_train) %>%
-    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
-              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)),
-              frequency = 12)
-
-xgb_forecast <- xgb_pred %>%
-    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(is.na(year_month)) %>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
-              end = zoo::as.yearmon(max((fideos %>% filter(is.na(year_month))%>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
-              frequency = 12)
-
-ts <- y1_train %>% 
-    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
-              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)), 
-              frequency = 12)
-
-forecast_list <- list(
-   model = xgb_model$modelInfo,
-   method = xgb_model$method,
-   mean = xgb_forecast,
-   x = ts, 
-   fitted = fitted,
-   residuals = as.numeric(ts) - as.numeric(fitted)
-)
-class(forecast_list) <- "forecast"
-
-forecast::autoplot(forecast_list)
 ```
+Como se puede ver, los tres modelos predicen que el precio de los fideos va a aumentar en los próximos 9 meses.
 
-### Modelo de la marca Las Acacias
+En cuanto a la tabla, las medidas corresponden a distintas formas de agregar el *error de predicción*, que se define como la diferencia entre los datos del conjunto de prueba y las predicciones del modelo. Según el libro **Forecasting: Principles and Practice** se pueden clasificar en tres tipos:
+- Dependientes de la escala (de la variable respuesta): mae y rmse
+- Errores porcentuales: mape y smape
+- No dependientes de la escala: mase
 
-```{r}
-x_train <- fideos %>% filter(!is.na(year_month)) %>% select(year, month) %>% as.matrix()
+El primer tipo sirve exclusivamente para comparar modelos en los que la variable respuesta esté medida en una unidad común, ya que el error se mide en las unidades de la misma. Los otros dos sirven para comparar el desempeño de modelos más diversos.
 
-y2_train <- c(fideos %>% filter(!is.na(year_month)) %>% select(`Las Acacias - franja celeste`))[[1]]
+En este caso, como los tres modelos están construidos con el mismo conjunto de datos, se pueden considerar todos los estadísticos. En todos los casos el error más pequeño lo tiene la regresión de ARIMA, por lo que se concluye que es la mejor alternativa para esta serie de tiempo. 
 
-x_pred <- fideos %>% filter(is.na(year_month)) %>% select(year, month) %>% as.matrix()
+En cuanto a su intervalo de confianza, a un 90% tiene un rango de aproximadamente 2 pesos, que teniendo en cuenta el problema que se está estudiando, no presenta mayores inconvenientes. 
 
-xgb_model <- caret::train(
-   x_train, y2_train,
-   trControl = xgb_trcontrol,
-   #tuneGrid = xgb_grid,
-   method = "xgbTree",
-   nthread = 1
+A modo de conclusión, el modelo predice que al final del año 2023 el precio de los fideos habrá experimentado un aumento de 7.80% con respecto al año anterior. Este aumento está alineado con la inflación esperada para el año, que es de un 8.00% según la Encuesta de Expectativas Empresariales del INE realizada en junio del presente año.
+
+# Aplicación Shiny
+
+
+```{r, eval=F}
+
+preciosmvd <- filter(precios,depto=="Montevideo") |> select(-c(id_producto,nombre.sucursal,barrio,cadena,depto,id.depto,nombre,geometry))
+
+anho2023 <- c("2023-01-01","2023-02-01","2023-03-01")
+
+establecimientosmvd <- filter(establecimientos, id.establecimientos %in% preciosmvd$id_establecimientos) |> filter(!(id.establecimientos==874)) |>  # se elimina porque está en durazno o mal puesta
+  select(-c(barrio,depto,id.depto))
+
+productos2 <- levels(as.factor(preciosmvd$producto))
+marcas <- levels(as.factor(preciosmvd$marca))
+
+ui <- fluidPage(
+  titlePanel("Mapa"),
+  sidebarLayout(
+    sidebarPanel=sidebarPanel(
+      selectizeInput("eleg_producto",'Producto:',choices=productos2,options = list(maxItems = 1)),
+      selectizeInput("eleg_marca",'Marca:',choices=marcas) # Cómo hago un input reactivo
+    ),
+    mainPanel=mainPanel(leafletOutput("mapa"))
+  )
 )
-
-xgb_pred <- xgb_model %>% stats::predict(x_pred)
-
-fitted <- xgb_model %>%
-    stats::predict(x_train) %>%
-    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
-              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)),
-              frequency = 12)
-
-xgb_forecast <- xgb_pred %>%
-    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(is.na(year_month)) %>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
-              end = zoo::as.yearmon(max((fideos %>% filter(is.na(year_month))%>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
-              frequency = 12)
-
-ts <- y2_train %>% 
-    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
-              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)), 
-              frequency = 12)
-
-forecast_list <- list(
-   model = xgb_model$modelInfo,
-   method = xgb_model$method,
-   mean = xgb_forecast,
-   x = ts, 
-   fitted = fitted,
-   residuals = as.numeric(ts) - as.numeric(fitted)
-)
-class(forecast_list) <- "forecast"
-
-forecast::autoplot(forecast_list)
+server <- function(input, output) {
+ #  observe({
+  #  marcas <- levels(as.factor(filter(preciosmvd,producto %in% input$eleg_producto)$marca))
+   # updateSelectizeInput(session=getDefaultReactiveDomain(),"eleg_marca","Marca:",choices=marcas)
+  # })
+  preciosproducto <- reactive({
+    filter(preciosmvd,
+           producto %in% input$eleg_producto,
+           marca %in% input$eleg_marca)
+    })
+  precioestablecimiento <- reactive({
+    preciosproducto <- preciosproducto()
+    preciosproducto |> 
+      filter(year_month %in% anho2023) |> 
+    group_by(id_establecimientos) |> 
+      summarise(id_establecimientos,precio=mean(avg)) #SACAR ID PARA IDENTIFICAR
+  })
+  establecimientosproducto <- reactive({
+    preciosproducto <- preciosproducto()
+    precioestablecimiento <- precioestablecimiento()
+    filter(establecimientosmvd,
+                                     id.establecimientos %in% preciosproducto$id_establecimiento) |> 
+      left_join(precioestablecimiento,
+                by = c("id.establecimientos" = "id_establecimientos"),
+                suffix=c("","")) #METER EL PRECIO EN EL ESTABLECIMIENTO
+    })
+  output$mapa <- renderLeaflet({
+    establecimientosproducto <- establecimientosproducto()
+    pal <- colorNumeric(palette = "OrRd",domain = establecimientosproducto$precio)
+  leaflet(establecimientosproducto) %>% addTiles() %>%
+      fitBounds(-56.270, -34.836, -56.091, -34.929)%>%
+      clearShapes() %>%
+      addCircles(radius=15,weight = 0.5, color = "black",fillColor = ~pal(precio), fillOpacity = 0.7, popup = ~paste("Local:",nombre.sucursal,"<br>","Precio:",precio))
+  })
+}
+shinyApp(ui, server)
 ```
-
-### Modelo de la marca Puritas
-
-```{r}
-x_train <- fideos %>% filter(!is.na(year_month)) %>% select(year, month) %>% as.matrix()
-
-y3_train <- c(fideos %>% filter(!is.na(year_month)) %>% select(Puritas))[[1]]
-
-x_pred <- fideos %>% filter(is.na(year_month)) %>% select(year, month) %>% as.matrix()
-
-xgb_model <- caret::train(
-   x_train, y3_train,
-   trControl = xgb_trcontrol,
-   #tuneGrid = xgb_grid,
-   method = "xgbTree",
-   nthread = 1
-)
-
-xgb_pred <- xgb_model %>% stats::predict(x_pred)
-
-fitted <- xgb_model %>%
-    stats::predict(x_train) %>%
-    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
-              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)),
-              frequency = 12)
-
-xgb_forecast <- xgb_pred %>%
-    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(is.na(year_month)) %>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
-              end = zoo::as.yearmon(max((fideos %>% filter(is.na(year_month))%>% mutate(year_month = as.Date(ym(paste(year, "-", month)))))$year_month)),
-              frequency = 12)
-
-ts <- y3_train %>% 
-    stats::ts(start = zoo::as.yearmon(min((fideos %>% filter(!is.na(year_month)))$year_month)), 
-              end = zoo::as.yearmon(max((fideos %>% filter(!is.na(year_month)))$year_month)), 
-              frequency = 12)
-
-forecast_list <- list(
-   model = xgb_model$modelInfo,
-   method = xgb_model$method,
-   mean = xgb_forecast,
-   x = ts, 
-   fitted = fitted,
-   residuals = as.numeric(ts) - as.numeric(fitted)
-)
-class(forecast_list) <- "forecast"
-
-forecast::autoplot(forecast_list)
-
-# xgb_grid <- base::expand.grid(
-#    list(
-#     nrounds = c(100, 200),
-#     max_depth = c(10, 15, 20), # maximum depth of a tree
-#     colsample_bytree = seq(0.5), # subsample ratio of columns when construction each tree
-#     eta = 0.1, # learning rate
-#     gamma = 0, # minimum loss reduction
-#     min_child_weight = 1,  # minimum sum of instance weight (hessian) needed ina child
-#     subsample = 1 # subsample ratio of the training instances
-# ))
-```
-
 
 
 
