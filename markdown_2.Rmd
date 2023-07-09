@@ -472,13 +472,15 @@ En este caso, como los tres modelos están construidos con el mismo conjunto de 
 
 En cuanto a su intervalo de confianza, a un 90% tiene un rango de aproximadamente 2 pesos, que teniendo en cuenta el problema que se está estudiando, no presenta mayores inconvenientes. 
 
-A modo de conclusión, el modelo predice que al final del año 2023 el precio de los fideos habrá experimentado un aumento de 7.80% con respecto al año anterior. Este aumento está alineado con la inflación esperada para el año, que es de un 8.00% según la Encuesta de Expectativas Empresariales del INE realizada en junio del presente año.
+A modo de conclusión, el modelo predice que al final del año 2023 el precio de los fideos habrá experimentado un aumento de 7.80% con respecto al año anterior. Este aumento está alineado con la inflación esperada para el año, que es de un 8.00% según la Encuesta de Expectativas Empresariales de junio [@boletinINE].
 
 \newpage
 
 # Aplicación Shiny
 
-La aplicación cuenta con la opción de seleccionar un producto y las marcas que se deseen para investigar su precio dentro de Montevideo mediante un mapa de *leaflet* [@leaflet] con los establecimientos, para observar las diferencias entre departamentos o para generar un modelo predictor del precio.
+La aplicación cuenta con la opción de seleccionar un producto y las marcas que se deseen para investigar su precio dentro de Montevideo mediante un mapa de *leaflet* [@leaflet] con los establecimientos o para observar las diferencias entre departamentos.
+
+Se implementó también la posibilidad de generar modelos de predicción temporal con los precios de cada producto, pero esto no pudo ser introducido a la aplicación por no tener suficientes recursos computacionales en el servidor gratuito de Posit como para generarlo.
 
 ![mvd_mapa](mvd_mapa.png)
 

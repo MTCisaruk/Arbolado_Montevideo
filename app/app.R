@@ -4,14 +4,14 @@ library(sf)
 library(leaflet)
 library(terra)
 library(RColorBrewer)
-library(xgboost)
-library(caret)
-library(tidymodels)
-library(modeltime)
-library(timetk)
+#library(xgboost)
+#library(caret)
+#library(tidymodels)
+#library(modeltime)
+#library(timetk)
 library(shiny)
-library(gt)
-library(plotly)
+#library(gt)
+#library(plotly)
 
 precios <- readRDS("precios_canasta.RDS")
 
@@ -48,8 +48,8 @@ ui <- fluidPage(
     mainPanel=mainPanel(
       tabsetPanel(type="tabs",
                   tabPanel("Establecimientos de Montevideo", leafletOutput("mapa")),
-                  tabPanel("Precios por departamento",plotOutput("uruguay")),
-                  tabPanel("Predicción de precio",plotlyOutput("modelo"))
+                  tabPanel("Precios por departamento",plotOutput("uruguay"))#,
+                  # tabPanel("Predicción de precio",plotlyOutput("modelo"))
       )
     )
   )
@@ -113,44 +113,44 @@ server <- function(input, output) {
   
   
 
-  output$modelo <- renderPlotly({
-    prod <- precios %>% 
-        filter(producto %in% input$eleg_producto & marca %in% input$eleg_marca) %>% 
-        group_by(year_month) %>% 
-        summarise(precio = mean(avg))
-    
-    if(nrow(prod)>0){
-    
-    splits <- time_series_split(prod, year_month, assess = "3 months")
-    
-    model_arima <- arima_reg() %>% 
-      set_engine("auto_arima") %>% 
-      fit(precio ~ year_month, training(splits))
-    
-    model_glmnet <- linear_reg(penalty = 0.01) %>% 
-      set_engine("glmnet") %>% 
-      fit(precio ~ month(year_month) + as.numeric(year_month), training(splits))
-    
-    model_prophet <- prophet_reg() %>% 
-      set_engine("prophet") %>% 
-      fit(precio ~ year_month, training(splits))
-    
-    model_tbl <- modeltime_table(
-      model_arima,
-      model_prophet,
-      model_glmnet)
-    
-    calib_tbl <- model_tbl %>% 
-      modeltime_calibrate(testing(splits))
-    future_forecast <- calib_tbl %>% 
-      modeltime_refit(prod) %>% 
-      modeltime_forecast(h = "9 months", actual_data = prod)
-    
-    future_forecast %>% plot_modeltime_forecast(
-      .title = paste("Precio de", input$eleg_producto, "entre 2016 y 2023 ($)"),
-      .conf_interval_alpha = 0.1)
-    
-    }else{plotly_empty()}
-  })
+  # output$modelo <- renderPlotly({
+  #   prod <- precios %>% 
+  #       filter(producto %in% input$eleg_producto & marca %in% input$eleg_marca) %>% 
+  #       group_by(year_month) %>% 
+  #       summarise(precio = mean(avg))
+  #   
+  #   if(nrow(prod)>0){
+  #   
+  #   splits <- time_series_split(prod, year_month, assess = "3 months")
+  #   
+  #   model_arima <- arima_reg() %>% 
+  #     set_engine("auto_arima") %>% 
+  #     fit(precio ~ year_month, training(splits))
+  #   
+  #    model_glmnet <- linear_reg(penalty = 0.01) %>% 
+  #      set_engine("glmnet") %>% 
+  #      fit(precio ~ month(year_month) + as.numeric(year_month), training(splits))
+  #   
+  #    model_prophet <- prophet_reg() %>% 
+  #      set_engine("prophet") %>% 
+  #      fit(precio ~ year_month, training(splits))
+  #   
+  #   model_tbl <- modeltime_table(
+  #      model_prophet,
+  #      model_glmnet,
+  #     model_arima)
+  #   
+  #   calib_tbl <- model_tbl %>% 
+  #     modeltime_calibrate(testing(splits))
+  #   future_forecast <- calib_tbl %>% 
+  #     modeltime_refit(prod) %>%
+  #     modeltime_forecast(h = "9 months", actual_data = prod)
+  #   
+  #   future_forecast %>% plot_modeltime_forecast(
+  #     .title = paste("Precio de", input$eleg_producto, "entre 2016 y 2023 ($)"),
+  #     .conf_interval_alpha = 0.1)
+  #   
+  #   }else{plotly_empty()}
+  # })
 }
 shinyApp(ui, server)

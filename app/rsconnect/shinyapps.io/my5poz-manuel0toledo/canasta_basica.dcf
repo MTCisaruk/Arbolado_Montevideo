@@ -5,9 +5,9 @@ account: my5poz-manuel0toledo
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 9429674
-bundleId: 7436885
+bundleId: 7437555
 url: https://my5poz-manuel0toledo.shinyapps.io/canasta_basica/
-when: 1688924782.27362
-lastSyncTime: 1688924782.27364
+when: 1688946669.05958
+lastSyncTime: 1688946669.0596
 asMultiple: FALSE
 asStatic: FALSE
