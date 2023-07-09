@@ -70,7 +70,7 @@ server <- function(input, output) {
     preciosproducto |> 
       filter(year_month %in% anho2023) |> 
       group_by(id_establecimientos) |> 
-      summarise(id_establecimientos,precio=mean(avg)) #SACAR ID PARA IDENTIFICAR
+      summarise(id_establecimientos,precio=round(mean(avg), 1)) #SACAR ID PARA IDENTIFICAR
   })
   establecimientosproducto <- reactive({
     preciosproducto <- preciosproducto()
