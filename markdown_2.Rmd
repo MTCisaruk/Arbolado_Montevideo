@@ -12,14 +12,14 @@ library(here)
 library(tidyverse)
 library(sf)
 library(leaflet)
-library(terra)
-library(lubridate)
+#library(terra)
+#library(lubridate)
 library(RColorBrewer)
 library(xgboost)
 library(caret)
 library(tidymodels)
-library(modeltime)
-library(timetk)
+#library(modeltime)
+#library(timetk)
 library(shiny)
 ```
 
@@ -117,8 +117,7 @@ establecimientos <- read_delim("datos/establecimiento.csv", delim = ";", locale 
          long = ifelse(long > 0, -34.88675, long),
          # arreglamos San Roque del aeropuerto, que estaba mal
          long = ifelse(id.establecimientos == 679, -34.83675, long),
-         lat = ifelse(id.establecimientos == 679, -56.01600, lat)) %>%
-         rename(lng=lat,lat=long)
+         lat = ifelse(id.establecimientos == 679, -56.01600, lat))
 
 productos <- read_csv2("datos/productos.csv", locale = readr::locale(encoding = "latin1")) %>% 
   select(id.producto, producto, marca, nombre) 
@@ -135,6 +134,16 @@ saveRDS(precios_canasta, "precios_canasta.RDS")
 ```
 
 ```{r cargar datos}
+establecimientos <- read_delim("datos/establecimiento.csv", delim = ";", locale = locale(encoding = "latin1")) %>% 
+  select(id.establecimientos, nombre.sucursal, barrio, cadena, long, lat, depto, id.depto) %>% 
+  mutate(lat=as.numeric(sub(',','.',lat,fixed=T)),
+         long=as.numeric(sub(',','.',long,fixed=T)),
+         # arreglamos Ta Ta que le faltaba el signo 
+         long = ifelse(long > 0, -34.88675, long),
+         # arreglamos San Roque del aeropuerto, que estaba mal
+         long = ifelse(id.establecimientos == 679, -34.83675, long),
+         lat = ifelse(id.establecimientos == 679, -56.01600, lat)) %>% 
+  filter_at(c("long", "lat"), function(x) !is.na(x)) |> mutate(lng=lat,lat=long) |> select(-long)
 precios <- readRDS(here("precios_canasta.RDS"))
 
 df_depto <- st_as_sf(vect(here("Mapas","ine_depto.shp"))) %>% st_set_crs(5382) %>%  st_transform(4326)
