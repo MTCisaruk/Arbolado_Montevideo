@@ -459,6 +459,9 @@ A modo de conclusión, el modelo predice que al final del año 2023 el precio de
 
 # Aplicación Shiny
 
+La aplicación cuenta con la opción de seleccionar un producto y las marcas que se deseen para investigar su precio dentro de Montevideo mediante un mapa de *leaflet* [@leaflet] con los establecimientos, para observar las diferencias entre departamentos o para generar un modelo predictor del precio.
+
+
 
 ```{r, eval=F}
 library(RColorBrewer)
