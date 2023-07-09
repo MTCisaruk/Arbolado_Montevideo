@@ -428,6 +428,8 @@ future_forecast %>% plot_modeltime_forecast(
 
 ![glmnet](glmnet.png)
 
+La aplicación se encuentra en https://my5poz-manuel0toledo.shinyapps.io/canasta_basica/
+
 ```{r}
 
 calib_tbl %>%
@@ -461,6 +463,12 @@ A modo de conclusión, el modelo predice que al final del año 2023 el precio de
 
 La aplicación cuenta con la opción de seleccionar un producto y las marcas que se deseen para investigar su precio dentro de Montevideo mediante un mapa de *leaflet* [@leaflet] con los establecimientos, para observar las diferencias entre departamentos o para generar un modelo predictor del precio.
 
+![mvd_mapa](mvd_mapa.png)
+
+![dpto_mapa](dpto_mapa.png)
+
+![modelo](modelo.png)
+
 
 
 ```{r, eval=F}
@@ -483,49 +491,54 @@ ui <- fluidPage(
   titlePanel("Mapa"),
   sidebarLayout(
     sidebarPanel=sidebarPanel(
-      selectizeInput("eleg_producto",'Producto:',choices=productos2,options = list(maxItems = 1)),
-      selectInput("eleg_marca",'Marca:',choices=marcas,multiple = TRUE) # Cómo hago un input reactivo
+      selectizeInput(inputId="eleg_producto",'Producto:',choices=productos2,options = list(maxItems = 1)),
+      selectInput(inputId="eleg_marca",'Marca:',choices=marcas,multiple = TRUE) # Cómo hago un input reactivo
     ),
     mainPanel=mainPanel(
       tabsetPanel(type="tabs",
-        tabPanel("Establecimientos de Montevideo", leafletOutput("mapa")),
-        tabPanel("Precios por departamento",plotOutput("uruguay")),
-        tabPanel("Predicción de precio",plotlyOutput("modelo"))
-        )
+                  tabPanel("Establecimientos de Montevideo", leafletOutput("mapa")),
+                  tabPanel("Precios por departamento",plotOutput("uruguay")),
+                  tabPanel("Predicción de precio",plotlyOutput("modelo"))
+      )
     )
   )
 )
 server <- function(input, output) {
-   observe({updateSelectInput(session=getDefaultReactiveDomain(),"eleg_marca","Marca:",choices=levels(as.factor(filter(preciosmvd,producto %in% input$eleg_producto)$marca)))})
-  
+
+  observeEvent(input$eleg_producto,{
+    updateSelectInput(session=getDefaultReactiveDomain(),"eleg_marca",choices = levels(as.factor(filter(preciosmvd,producto %in% input$eleg_producto)$marca)))
+    })
   
   preciosproducto <- reactive({
     filter(preciosmvd,
            producto %in% input$eleg_producto,
            marca %in% input$eleg_marca)
-    })
+  })
   precioestablecimiento <- reactive({
     preciosproducto <- preciosproducto()
     preciosproducto |> 
       filter(year_month %in% anho2023) |> 
-    group_by(id_establecimientos) |> 
+      group_by(id_establecimientos) |> 
       summarise(id_establecimientos,precio=mean(avg)) #SACAR ID PARA IDENTIFICAR
   })
   establecimientosproducto <- reactive({
     preciosproducto <- preciosproducto()
     precioestablecimiento <- precioestablecimiento()
     filter(establecimientosmvd,
-                                     id.establecimientos %in% preciosproducto$id_establecimiento) |> 
+           id.establecimientos %in% preciosproducto$id_establecimiento) |> 
       left_join(precioestablecimiento,
                 by = c("id.establecimientos" = "id_establecimientos"),
                 suffix=c("","")) #METER EL PRECIO EN EL ESTABLECIMIENTO
-    })
+  })
+  
+
+  
   
   
   output$mapa <- renderLeaflet({
     establecimientosproducto <- establecimientosproducto()
     pal <- colorNumeric(palette = "OrRd",domain = establecimientosproducto$precio)
-  leaflet(establecimientosproducto) %>% addTiles() %>%
+    leaflet(establecimientosproducto) %>% addTiles() %>%
       fitBounds(-56.270, -34.836, -56.091, -34.929)%>%
       clearShapes() %>%
       addCircles(radius=15,weight = 0.5, color = "black",fillColor = ~pal(precio), fillOpacity = 0.7, popup = ~paste("Local:",nombre.sucursal,"<br>","Precio:",precio))
@@ -534,60 +547,59 @@ server <- function(input, output) {
   
   
   output$uruguay <- renderPlot({
-    
-    
-    prod_dpto <- precios %>% 
-  filter(producto %in% input$eleg_producto, marca %in% input$eleg_marca) %>% 
-  group_by(id.depto) %>% 
-  summarise(precio = mean(avg))
+    prod_dpto <- precios %>%
+      filter(producto %in% input$eleg_producto, marca %in% input$eleg_marca) %>%
+      group_by(id.depto) %>%
+      summarise(precio = mean(avg))
 
-ggplot(data=df_depto %>% left_join(prod_dpto, by = c("DEPTO" = "id.depto"))) + 
-  geom_sf(aes(fill=precio),color="gray20") +
-  scale_fill_gradientn(colours = brewer.pal(5, "OrRd")) +
-  theme_void() +
-  labs(title="Departamentos") +
-  theme(plot.title=element_text(hjust=1/2))
-    
-    
-    
-})
+    ggplot(data=df_depto %>% left_join(prod_dpto, by = c("DEPTO" = "id.depto"))) +
+      geom_sf(aes(fill=precio),color="gray20") +
+      scale_fill_gradientn(colours = brewer.pal(5, "OrRd")) +
+      theme_void() +
+      labs(title="Departamentos") +
+      theme(plot.title=element_text(hjust=1/2))
+  })
   
-      prod <- reactive({
-        precios %>% 
-  filter(producto %in% input$eleg_producto & marca %in% input$eleg_marca) %>% 
-  group_by(year_month) %>% 
-  summarise(precio = mean(avg))
-        })
-output$modelo <- renderPlotly({
-  prod <- prod()
-splits <- time_series_split(prod, year_month, assess = "3 months")
-
-model_arima <- arima_reg() %>% 
-  set_engine("auto_arima") %>% 
-  fit(precio ~ year_month, training(splits))
   
-  model_glmnet <- linear_reg(penalty = 0.01) %>% 
-  set_engine("glmnet") %>% 
-  fit(precio ~ month(year_month) + as.numeric(year_month), training(splits))
 
-model_prophet <- prophet_reg() %>% 
-  set_engine("prophet") %>% 
-  fit(precio ~ year_month, training(splits))
-
-  model_tbl <- modeltime_table(
-  model_arima,
-  model_prophet,
-  model_glmnet
-)
-  calib_tbl <- model_tbl %>% 
-  modeltime_calibrate(testing(splits))
-  future_forecast <- calib_tbl %>% 
-  modeltime_refit(prod) %>% 
-  modeltime_forecast(h = "9 months", actual_data = prod)
-  
-  future_forecast %>% plot_modeltime_forecast(
-  .title = paste("Precio de", input$eleg_producto, "entre 2016 y 2023 ($)"),
-  .conf_interval_alpha = 0.1)
+  output$modelo <- renderPlotly({
+    prod <- precios %>% 
+        filter(producto %in% input$eleg_producto & marca %in% input$eleg_marca) %>% 
+        group_by(year_month) %>% 
+        summarise(precio = mean(avg))
+    
+    if(nrow(prod)>0){
+    
+    splits <- time_series_split(prod, year_month, assess = "3 months")
+    
+    model_arima <- arima_reg() %>% 
+      set_engine("auto_arima") %>% 
+      fit(precio ~ year_month, training(splits))
+    
+    model_glmnet <- linear_reg(penalty = 0.01) %>% 
+      set_engine("glmnet") %>% 
+      fit(precio ~ month(year_month) + as.numeric(year_month), training(splits))
+    
+    model_prophet <- prophet_reg() %>% 
+      set_engine("prophet") %>% 
+      fit(precio ~ year_month, training(splits))
+    
+    model_tbl <- modeltime_table(
+      model_arima,
+      model_prophet,
+      model_glmnet)
+    
+    calib_tbl <- model_tbl %>% 
+      modeltime_calibrate(testing(splits))
+    future_forecast <- calib_tbl %>% 
+      modeltime_refit(prod) %>% 
+      modeltime_forecast(h = "9 months", actual_data = prod)
+    
+    future_forecast %>% plot_modeltime_forecast(
+      .title = paste("Precio de", input$eleg_producto, "entre 2016 y 2023 ($)"),
+      .conf_interval_alpha = 0.1)
+    
+    }else{plotly_empty()}
   })
 }
 shinyApp(ui, server)
