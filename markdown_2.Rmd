@@ -472,7 +472,8 @@ marcas <- levels(as.factor(preciosmvd$marca))
 establecimientosmvd <- filter(establecimientos,id.establecimientos %in% preciosmvd$id_establecimientos) |> filter(!(id.establecimientos==874)) |>  # se elimina porque está en durazno o mal puesta
   select(-c(ccz,depto,id.depto))
 
-productos2 <- levels(as.factor(precios$producto))
+df_depto <- st_as_sf(vect(here("Mapas","ine_depto.shp"))) %>% st_set_crs(5382) %>%  st_transform(4326)
+productos2 <- levels(as.factor(preciosmvd$producto))
 
 
 ui <- fluidPage(
@@ -492,10 +493,9 @@ ui <- fluidPage(
   )
 )
 server <- function(input, output) {
-   observe({
-    updateSelectInput(session=getDefaultReactiveDomain(),"eleg_marca","Marca:",choices=levels(as.factor(filter(preciosmvd,producto %in% input$eleg_producto)$marca)))
-    
- })
+   observe({updateSelectInput(session=getDefaultReactiveDomain(),"eleg_marca","Marca:",choices=levels(as.factor(filter(preciosmvd,producto %in% input$eleg_producto)$marca)))})
+  
+  
   preciosproducto <- reactive({
     filter(preciosmvd,
            producto %in% input$eleg_producto,
@@ -517,6 +517,8 @@ server <- function(input, output) {
                 by = c("id.establecimientos" = "id_establecimientos"),
                 suffix=c("","")) #METER EL PRECIO EN EL ESTABLECIMIENTO
     })
+  
+  
   output$mapa <- renderLeaflet({
     establecimientosproducto <- establecimientosproducto()
     pal <- colorNumeric(palette = "OrRd",domain = establecimientosproducto$precio)
@@ -529,17 +531,22 @@ server <- function(input, output) {
   
   
   output$uruguay <- renderPlot({
-  prod_dpto <- precios %>% 
-  filter(id_producto %in% input$eleg_producto, marca %in% input$eleg_marca) %>% 
+    
+    
+    prod_dpto <- precios %>% 
+  filter(producto %in% input$eleg_producto, marca %in% input$eleg_marca) %>% 
   group_by(id.depto) %>% 
   summarise(precio = mean(avg))
-  output
+
 ggplot(data=df_depto %>% left_join(prod_dpto, by = c("DEPTO" = "id.depto"))) + 
   geom_sf(aes(fill=precio),color="gray20") +
   scale_fill_gradientn(colours = brewer.pal(5, "OrRd")) +
   theme_void() +
   labs(title="Departamentos") +
   theme(plot.title=element_text(hjust=1/2))
+    
+    
+    
 })
   
       prod <- reactive({
