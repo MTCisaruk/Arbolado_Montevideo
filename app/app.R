@@ -19,9 +19,9 @@ establecimientos <- read_delim("establecimiento.csv", delim = ";", locale = loca
   select(id.establecimientos, nombre.sucursal, ccz, cadena, long, lat, depto, id.depto) %>% 
   mutate(lat=as.numeric(sub(',','.',lat,fixed=T)),
          long=as.numeric(sub(',','.',long,fixed=T)),
-         arreglamos Ta Ta que le faltaba el signo
+         # arreglamos Ta Ta que le faltaba el signo
          long = ifelse(long > 0, -34.88675, long),
-         arreglamos San Roque del aeropuerto, que estaba mal
+         # arreglamos San Roque del aeropuerto, que estaba mal
          long = ifelse(id.establecimientos == 679, -34.83675, long),
          lat = ifelse(id.establecimientos == 679, -56.01600, lat)) %>% 
   filter_at(c("long", "lat"), function(x) !is.na(x)) |> mutate(lng=lat,lat=long) |> select(-long)
@@ -48,8 +48,8 @@ ui <- fluidPage(
     mainPanel=mainPanel(
       tabsetPanel(type="tabs",
                   tabPanel("Establecimientos de Montevideo", leafletOutput("mapa")),
-                  tabPanel("Precios por departamento",plotOutput("uruguay"))#,
-                  # tabPanel("Predicción de precio",plotlyOutput("modelo"))
+                  tabPanel("Precios por departamento",plotOutput("uruguay")),
+                  tabPanel("Predicción de precio",plotlyOutput("modelo"))
       )
     )
   )
